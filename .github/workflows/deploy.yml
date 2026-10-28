@@ -18,10 +18,12 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          cname: mindtechb2b.tech
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
-      - name: Deploy to GitHub Pages
+      - name: Deploy static site
         id: deployment
         uses: actions/deploy-pages@v4
