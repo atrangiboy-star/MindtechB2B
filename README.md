@@ -1,41 +1,68 @@
-# MindTechB2B
+# MindTechB2B Operations Workspace
 
-A responsive operations workspace for task tracking across Operations, Data, QA, Campaign Management, Sales and Management teams.
+A React + TypeScript + Vite workspace for internal task tracking across Operations, Data, QA, Campaign Management, Sales, Marketing and Management. The frontend is designed for GitHub Pages; Supabase provides authentication, PostgreSQL task storage and Realtime refresh.
 
-## Current application
+## Current implementation
 
-- Overview dashboard with task counts, overdue work and department workload.
-- Create tasks with owner, department, priority, status, due date and description.
-- Search and filter tasks, update task status, delete tasks and export visible tasks as CSV.
-- Campaign pacing, department workload, reports and monthly calendar views.
-- Light/dark theme and responsive mobile navigation.
-- GitHub Pages deployment workflow.
+- Responsive dashboard, master task tracker, Kanban board, deadlines/calendar list, and department workload summaries.
+- Task create/edit/delete, status changes, priority, owner, department, due date, progress, descriptions, global search, department/status filters and CSV export.
+- Light/dark theme and mobile-friendly layout.
+- Supabase email/password sign-in and sign-up UI restricted in the client to `@mindtechb2b.com`; database RLS restricts task access to authenticated users on that domain.
+- Local browser preview mode when Supabase configuration is not available. Preview records are **not** shared or cloud-persisted.
+- GitHub Actions build/type-check/deployment workflow.
 
-## Deployment
+## Repository
 
-The site is configured to deploy from the `main` branch through GitHub Actions. In GitHub, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions** if it is not already selected. Then open **Actions** and confirm the “Deploy MindTechB2B to GitHub Pages” workflow completes.
+https://github.com/atrangiboy-star/MindtechB2B
 
-Expected URL: https://atrangiboy-star.github.io/MindtechB2B/
+## Local development
 
-## Supabase shared workspace setup
+Requires Node.js 20 or later.
 
-The frontend now includes a Supabase auth/sync client (`backend.js`) and the shared table migration at `supabase/schema.sql`. The configured project URL is `https://lbudusorkjkktspgsexf.supabase.co`.
+```sh
+npm install
+npm run dev
+npm run build
+npm run preview
+```
 
-Before shared team mode works:
-1. In the matching Supabase project, open **SQL Editor** and run `supabase/schema.sql`.
-2. In **Project Settings → API**, copy the public anon/publishable key into `config.js` as `supabaseAnonKey`. Never use a `service_role` or secret key in browser code.
-3. In Supabase Auth settings, set the site URL to the deployed GitHub Pages URL and add the final custom domain to allowed redirect URLs.
-4. Enable email/password sign-in and configure email confirmation as required by company policy.
-5. Verify that only `@mindtechb2b.com` users can authenticate and access rows. The migration enforces the domain at row level.
+Create a local `.env.local` file (never commit secrets):
 
-When the public key is not configured, the app intentionally stays in local preview mode. In shared mode, authenticated users read and update the common `workspace_tasks` table and receive Realtime refreshes. Do not store sensitive customer/prospect data until the access policies and authentication flow have been tested by an administrator.
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_OR_PUBLISHABLE_KEY
+```
 
-## Current scope and remaining launch requirements
+The anon/publishable key is intended for browser use with correctly configured RLS. **Never use a service-role/secret key in the frontend.**
 
-The task board currently supports creating tasks, changing status, deleting tasks, search/filter, CSV export, dashboard metrics, department workload, calendar and reports. The current implementation does not yet provide arbitrary custom columns, multi-workspace permissions, file attachments, or a full audit log. The custom domain must be registered and DNS must point to GitHub Pages before it can be served there.
+## Supabase setup
 
-## Security and validation
+1. Open the MindTechB2B Supabase project.
+2. In SQL Editor, run the complete script in `supabase/schema.sql`.
+3. In Project Settings → API, copy the project URL and the public anon/publishable key.
+4. In Authentication → URL Configuration, add the deployed GitHub Pages URL to allowed redirect URLs.
+5. Configure a Supabase **Before User Created** hook (or equivalent server-side auth restriction) to reject email addresses not ending in `@mindtechb2b.com`. The client-side check is not a security boundary. RLS protects access to task records.
+6. Confirm Realtime is enabled for `public.workspace_tasks` if live cross-client refresh is required.
 
-- Do not store confidential client/prospect data in preview mode.
-- Review database access policies before connecting company data.
-- Validate deployment status and test create/update/export flows after each release.
+## GitHub Pages deployment
+
+1. In repository Settings → Secrets and variables → Actions, add:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY` (public anon/publishable key only)
+2. In Settings → Pages, select **GitHub Actions** as the build source.
+3. Push to `main`; the workflow runs `npm install`, TypeScript checks, Vite build and deploys `dist`.
+4. Confirm the latest workflow succeeds in the Actions tab.
+
+Expected project URL: https://atrangiboy-star.github.io/MindtechB2B/
+
+Custom domain target: https://mindtechb2b.co.in (works only after the domain is registered, DNS records are set at its authoritative DNS provider, and Pages certificate/domain validation succeeds). Do not remove existing mail-related DNS records.
+
+## Current scope and limitations
+
+This is the first React/TypeScript core implementation, not yet the complete Monday.com-style specification. Workspaces, projects/boards/groups, configurable custom columns, roles and department-level authorization, subtasks/dependencies, comments/mentions, file uploads, audit history, advanced views (timeline/Gantt/workload), Excel exports, and configurable automation rules still need implementation. The present schema is a shared task table and domain-level RLS; it does not yet provide per-department isolation or full RBAC.
+
+The supplied company logo was not available as an attachment in the context used to update this repository, so the current interface uses a simple text mark. Replace it with the actual approved logo once supplied.
+
+## Verification status
+
+The GitHub repository has been updated with the React/Vite foundation and deployment workflow. A successful production build, Supabase database setup, authentication/RLS test, GitHub Pages deployment, and custom-domain DNS have **not yet been verified** from this session. Do not treat demo/preview data as production data.
