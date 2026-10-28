@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827"><meta name="description" content="MindTechB2B — project, campaign and operations management in one workspace.">
+<title>MindTechB2B | Operations Workspace</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232d63f2'/%3E%3Cpath d='M9 28V12l11 10 11-10v16' stroke='white' stroke-width='4' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar">
+<div class="brand"><div class="brand-mark">M</div><div><strong>MindTechB2B</strong><small>WORKSPACE</small></div><button class="icon-btn mobile-close" id="closeNav" aria-label="Close navigation">×</button></div>
+<div class="workspace-switch"><span class="workspace-dot"></span><span><b>MindTechB2B</b><small>Company workspace</small></span><span class="chevron">⌄</span></div>
+<div class="nav-label">WORKSPACE</div>
+<nav class="nav">
+<button class="nav-item active" data-view="overview"><span>◫</span> Overview</button>
+<button class="nav-item" data-view="mytasks"><span>☑</span> My tasks <span class="nav-count" id="myCount">0</span></button>
+<button class="nav-item" data-view="alltasks"><span>▤</span> All tasks</button>
+<button class="nav-item" data-view="campaigns"><span>◉</span> Campaign pacing</button>
+<button class="nav-item" data-view="calendar"><span>▦</span> Calendar</button>
+</nav>
+<div class="nav-label">MANAGE</div>
+<nav class="nav">
+<button class="nav-item" data-view="departments"><span>♧</span> Departments</button>
+<button class="nav-item" data-view="reports"><span>▥</span> Reports</button>
+</nav>
+<div class="sidebar-bottom"><div class="help-card"><div class="help-icon">✦</div><b>Your operations, connected.</b><p>Keep tasks, teams and delivery milestones moving in one place.</p></div><button class="profile"><span class="avatar">MT</span><span><b>Workspace admin</b><small>Local preview mode</small></span><span class="more">•••</span></button></div>
+</aside>
+<div class="main-wrap">
+<header class="topbar"><button class="icon-btn menu-toggle" id="openNav" aria-label="Open navigation">☰</button><div class="breadcrumbs">Workspace <span>/</span> <b id="crumb">Overview</b></div><div class="top-actions"><span class="preview-pill"><i></i> Preview mode</span><button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button><button class="avatar small-avatar" title="Workspace admin">MT</button></div></header>
+<main class="content">
+<div class="page-heading"><div><div class="eyebrow" id="eyebrow">MONDAY, OCTOBER 29</div><h1 id="pageTitle">Good to see you <span>👋</span></h1><p id="pageSub">Here’s what’s happening across your workspace today.</p></div><button class="primary-btn" id="newTaskBtn"><span>＋</span> New task</button></div>
+<section class="stats-grid" id="stats">
+<div class="stat-card"><div class="stat-top"><span>Total tasks</span><span class="stat-icon blue">▤</span></div><div class="stat-number" id="totalStat">0</div><div class="stat-foot"><span class="muted">Across your workspace</span></div></div>
+<div class="stat-card"><div class="stat-top"><span>In progress</span><span class="stat-icon violet">◷</span></div><div class="stat-number" id="progressStat">0</div><div class="stat-foot"><span class="status-dot violet-dot"></span><span class="muted">Currently being worked on</span></div></div>
+<div class="stat-card"><div class="stat-top"><span>Completed</span><span class="stat-icon green">✓</span></div><div class="stat-number" id="doneStat">0</div><div class="stat-foot"><span class="status-dot green-dot"></span><span class="muted">Marked as done</span></div></div>
+<div class="stat-card"><div class="stat-top"><span>Overdue</span><span class="stat-icon orange">◴</span></div><div class="stat-number" id="overdueStat">0</div><div class="stat-foot"><span class="status-dot orange-dot"></span><span class="muted">Past due date</span></div></div>
+</section>
+<section class="main-grid" id="overviewGrid">
+<div class="panel task-panel"><div class="panel-head"><div><h2 id="listTitle">Recent tasks</h2><p>Keep track of the latest work across teams.</p></div><button class="text-btn" id="viewAllBtn">View all →</button></div>
+<div class="toolbar"><div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Search tasks..." aria-label="Search tasks"></div><select id="deptFilter" aria-label="Filter by department"><option value="">All departments</option><option>Operations</option><option>Data Team</option><option>QA Team</option><option>Campaign Management</option><option>Sales</option><option>Management</option></select><select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option><option>Not started</option><option>In progress</option><option>Blocked</option><option>Done</option></select></div>
+<div class="table-scroll"><table><thead><tr><th>Task</th><th>Department</th><th>Owner</th><th>Status</th><th>Due date</th><th></th></tr></thead><tbody id="taskRows"></tbody></table></div><div class="empty-state hidden" id="emptyState"><div class="empty-icon">☷</div><b>No tasks found</b><p>Try changing your filters or create a new task.</p><button class="primary-btn" id="emptyNewBtn">＋ Create task</button></div><div class="table-footer"><span id="rowCount">0 tasks</span><span>Changes save in this browser</span></div>
+</div>
+<div class="right-column"><div class="panel focus-panel"><div class="panel-head"><div><h2>Team workload</h2><p>Tasks by department</p></div><span class="subtle-icon">↗</span></div><div id="workload" class="workload"></div><div class="panel-divider"></div><div class="legend"><span><i class="legend-blue"></i> Open tasks</span><span><i class="legend-green"></i> Completed</span></div></div>
+<div class="panel quick-panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Move work forward faster.</p></div></div><button class="quick-action" id="quickTask"><span class="quick-icon blue">＋</span><span><b>Create a task</b><small>Assign work to a department</small></span><span class="quick-arrow">→</span></button><button class="quick-action" id="exportBtn"><span class="quick-icon green">↓</span><span><b>Export task list</b><small>Download a CSV report</small></span><span class="quick-arrow">→</span></button><button class="quick-action" id="clearFilters"><span class="quick-icon violet">⌕</span><span><b>Reset filters</b><small>See all workspace tasks</small></span><span class="quick-arrow">→</span></button></div>
+</div>
+</section>
+<section class="panel secondary-panel hidden" id="secondaryPanel"><div class="panel-head"><div><h2 id="secondaryTitle">Workspace</h2><p id="secondarySub"></p></div><button class="primary-btn" id="secondaryNew">＋ New task</button></div><div id="secondaryBody"></div></section>
+<footer>© 2026 MindTechB2B <span>Built for connected operations</span></footer>
+</main>
+</div>
+</div>
+<dialog id="taskDialog"><form id="taskForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">WORKSPACE TASK</span><h2>Create a task</h2><p>Give your team clear ownership and a deadline.</p></div><button type="button" class="icon-btn" id="closeDialog" aria-label="Close">×</button></div><label>Task name <input name="title" required maxlength="140" placeholder="e.g. Complete campaign delivery audit"></label><div class="form-row"><label>Department<select name="department"><option>Operations</option><option>Data Team</option><option>QA Team</option><option>Campaign Management</option><option>Sales</option><option>Management</option></select></label><label>Owner <input name="owner" maxlength="80" placeholder="e.g. Kunal"></label></div><div class="form-row"><label>Status<select name="status"><option>Not started</option><option>In progress</option><option>Blocked</option><option>Done</option></select></label><label>Priority<select name="priority"><option>P2</option><option>P1</option><option>P3</option></select></label></div><label>Due date <input name="due" type="date"></label><label>Description <textarea name="description" rows="3" maxlength="1000" placeholder="Add helpful context (optional)"></textarea></label><div class="dialog-actions"><button type="button" class="secondary-btn" id="cancelDialog">Cancel</button><button class="primary-btn" type="submit">Create task</button></div></form></dialog>
+<div class="toast" id="toast" role="status"></div>
+<script src="./app.js"></script>
+</body></html>
