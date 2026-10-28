@@ -53,5 +53,8 @@
 </div>
 <dialog id="taskDialog"><form id="taskForm" method="dialog"><div class="dialog-head"><div><span class="eyebrow">WORKSPACE TASK</span><h2>Create a task</h2><p>Give your team clear ownership and a deadline.</p></div><button type="button" class="icon-btn" id="closeDialog" aria-label="Close">×</button></div><label>Task name <input name="title" required maxlength="140" placeholder="e.g. Complete campaign delivery audit"></label><div class="form-row"><label>Department<select name="department"><option>Operations</option><option>Data Team</option><option>QA Team</option><option>Campaign Management</option><option>Sales</option><option>Management</option></select></label><label>Owner <input name="owner" maxlength="80" placeholder="e.g. Kunal"></label></div><div class="form-row"><label>Status<select name="status"><option>Not started</option><option>In progress</option><option>Blocked</option><option>Done</option></select></label><label>Priority<select name="priority"><option>P2</option><option>P1</option><option>P3</option></select></label></div><label>Due date <input name="due" type="date"></label><label>Description <textarea name="description" rows="3" maxlength="1000" placeholder="Add helpful context (optional)"></textarea></label><div class="dialog-actions"><button type="button" class="secondary-btn" id="cancelDialog">Cancel</button><button class="primary-btn" type="submit">Create task</button></div></form></dialog>
 <div class="toast" id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
+<script src="./backend.js"></script>
 <script src="./app.js"></script>
 </body></html>
