@@ -14,7 +14,7 @@ const seed=[
 let tasks;try{const v=JSON.parse(localStorage.getItem(STORAGE));tasks=Array.isArray(v)?v:seed.slice()}catch{tasks=seed.slice()}
 let currentView='overview',toastTimer;
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const save=()=>{try{localStorage.setItem(STORAGE,JSON.stringify(tasks))}catch{}};
+const save=()=>{try{localStorage.setItem(STORAGE,JSON.stringify(tasks))}catch{};try{window.mindtechBackend?.save(tasks)}catch{}};
 const dateLabel=d=>{if(!d)return'—';const x=new Date(d+'T12:00:00');return Number.isNaN(+x)?d:x.toLocaleDateString('en-IN',{day:'numeric',month:'short'})};
 const statusClass=s=>({'Done':'status-done','In progress':'status-progress','Blocked':'status-blocked','Not started':'status-not'}[s]||'status-not');
 function notify(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600)}
@@ -38,12 +38,13 @@ $$('.nav-item').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view
 $('#newTaskBtn').addEventListener('click',openDialog);$('#quickTask').addEventListener('click',openDialog);$('#emptyNewBtn').addEventListener('click',openDialog);$('#secondaryNew').addEventListener('click',openDialog);$('#closeDialog').addEventListener('click',()=>$('#taskDialog').close());$('#cancelDialog').addEventListener('click',()=>$('#taskDialog').close());
 $('#taskForm').addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.currentTarget);const title=String(f.get('title')||'').trim();if(!title)return;tasks.unshift({id:'t'+Date.now(),title,department:f.get('department'),owner:String(f.get('owner')||'').trim()||'Unassigned',status:f.get('status'),priority:f.get('priority'),due:f.get('due'),description:String(f.get('description')||'')});save();$('#taskDialog').close();setView('alltasks');notify('Task created and saved in this browser')});
 $('#taskRows').addEventListener('change',e=>{const id=e.target.dataset.status;if(!id)return;const t=tasks.find(x=>x.id===id);if(t){t.status=e.target.value;save();render();notify('Task status updated')}});
-$('#taskRows').addEventListener('click',e=>{const done=e.target.closest('[data-done]');if(done){const t=tasks.find(x=>x.id===done.dataset.done);if(t){t.status=t.status==='Done'?'Not started':'Done';save();render();notify('Task updated')}return}const del=e.target.closest('[data-delete]');if(del){const t=tasks.find(x=>x.id===del.dataset.delete);if(t&&confirm('Delete "'+t.title+'"?')){tasks=tasks.filter(x=>x.id!==t.id);save();render();notify('Task deleted')}}});
+$('#taskRows').addEventListener('click',e=>{const done=e.target.closest('[data-done]');if(done){const t=tasks.find(x=>x.id===done.dataset.done);if(t){t.status=t.status==='Done'?'Not started':'Done';save();render();notify('Task updated')}return}const del=e.target.closest('[data-delete]');if(del){const t=tasks.find(x=>x.id===del.dataset.delete);if(t&&confirm('Delete "'+t.title+'"?')){tasks=tasks.filter(x=>x.id!==t.id);try{window.mindtechBackend?.delete(t.id)}catch{};save();render();notify('Task deleted')}}});
 $('#viewAllBtn').addEventListener('click',()=>setView('alltasks'));$('#exportBtn').addEventListener('click',exportCsv);$('#clearFilters').addEventListener('click',()=>{$('#searchInput').value='';$('#deptFilter').value='';$('#statusFilter').value='';setView('alltasks');notify('Filters reset')});$('#reportExport')?.addEventListener('click',exportCsv);
 $('#secondaryBody').addEventListener('click',e=>{if(e.target.id==='reportExport')exportCsv()});
 $('#themeBtn').addEventListener('click',()=>{document.body.classList.toggle('dark');try{localStorage.setItem('mindtechb2b.theme',document.body.classList.contains('dark')?'dark':'light')}catch{}});
 try{if(localStorage.getItem('mindtechb2b.theme')==='dark')document.body.classList.add('dark')}catch{}
 $('#openNav').addEventListener('click',()=>$('#sidebar').classList.add('open'));$('#closeNav').addEventListener('click',()=>$('#sidebar').classList.remove('open'));
 $('#eyebrow').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+window.addEventListener('mindtech:tasks-loaded',e=>{if(Array.isArray(e.detail)){tasks=e.detail;try{localStorage.setItem(STORAGE,JSON.stringify(tasks))}catch{};render();notify('Shared workspace data loaded')}});
 render();
 })();
