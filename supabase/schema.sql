@@ -34,7 +34,27 @@ alter table public.workspace_tasks add constraint workspace_tasks_status_check
 alter table public.workspace_tasks drop constraint if exists workspace_tasks_progress_check;
 alter table public.workspace_tasks add constraint workspace_tasks_progress_check check (progress between 0 and 100);
 
+alter table public.workspace_tasks alter column status set default 'Not Started';
 alter table public.workspace_tasks enable row level security;
+
+-- Enforce the approved company email domain at account creation as well as in RLS.
+create or replace function public.enforce_mindtech_email_domain()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if new.email is null or lower(new.email) not like '%@mindtechb2b.com' then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
 drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
 create policy "MindTech employees can read workspace tasks"
 on public.workspace_tasks for select to authenticated
