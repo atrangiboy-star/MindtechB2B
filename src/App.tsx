@@ -1,5 +1,7 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { Activity, Bell, CalendarDays, CheckCircle2, ChevronDown, CircleHelp, Download, Filter, LayoutDashboard, ListTodo, LogOut, Moon, Plus, Search, Settings2, ShieldCheck, Sun, Users, X, Kanban, LoaderCircle, AlertTriangle } from "lucide-react";
 type TaskStatus = "Not Started" | "In Progress" | "Under Review" | "Blocked" | "Completed";
 type Priority = "P1" | "P2" | "P3";
