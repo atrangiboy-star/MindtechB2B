@@ -45,7 +45,55 @@ security definer
 set search_path = ''
 as $
 begin
-  if new.email is null or lower(new.email) not like '%@mindtechb2b.com' then
+  if new.email is null or lower(new.email) !~ '^[^@]+@mindtechb2b\\.com then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
     raise exception 'Only @mindtechb2b.com accounts are permitted';
   end if;
   return new;
@@ -75,6 +123,508 @@ drop policy if exists "MindTech employees can delete workspace tasks" on public.
 create policy "MindTech employees can delete workspace tasks"
 on public.workspace_tasks for delete to authenticated
 using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com)
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+)
+with check (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+ then
+    raise exception 'Only @mindtechb2b.com accounts are permitted';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists enforce_mindtech_email_domain on auth.users;
+create trigger enforce_mindtech_email_domain
+before insert or update of email on auth.users
+for each row execute function public.enforce_mindtech_email_domain();
+drop policy if exists "MindTech employees can read workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can read workspace tasks"
+on public.workspace_tasks for select to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com'
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
+drop policy if exists "MindTech employees can create workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can create workspace tasks"
+on public.workspace_tasks for insert to authenticated
+with check (
+  lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com')
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+
+  and (created_by is null or created_by = auth.uid())
+);
+drop policy if exists "MindTech employees can update workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can update workspace tasks"
+on public.workspace_tasks for update to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com)
+with check (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+)
+with check (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) like '%@mindtechb2b.com');
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
+drop policy if exists "MindTech employees can delete workspace tasks" on public.workspace_tasks;
+create policy "MindTech employees can delete workspace tasks"
+on public.workspace_tasks for delete to authenticated
+using (lower(coalesce(auth.jwt() ->> 'email','')) ~ '^[^@]+@mindtechb2b\\.com);
+
+create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
+create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
+create index if not exists workspace_tasks_status_idx on public.workspace_tasks(status);
+create index if not exists workspace_tasks_updated_at_idx on public.workspace_tasks(updated_at desc);
+grant select, insert, update, delete on public.workspace_tasks to authenticated;
+
+-- Supabase Realtime is optional; the UI refreshes after successful writes even if publication is unavailable.
+do $$
+begin
+  alter publication supabase_realtime add table public.workspace_tasks;
+exception when duplicate_object then null;
+when undefined_object then null;
+end $$;
+
+-- IMPORTANT: RLS protects task data. To reject non-company signups at the auth boundary too,
+-- configure a Supabase Before User Created hook that validates email suffix @mindtechb2b.com.
+-- Do not expose a service-role key in this static frontend.
+);
 
 create index if not exists workspace_tasks_department_idx on public.workspace_tasks(department);
 create index if not exists workspace_tasks_due_idx on public.workspace_tasks(due);
