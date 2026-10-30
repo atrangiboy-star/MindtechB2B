@@ -1,33 +1,28 @@
 # MindTechB2B Workspace
 
-A browser-only project and workflow tracker hosted on GitHub Pages. It requires no backend, API key, database, or account. Task data, department names, reminder preferences, and theme settings are saved in the current browser's local storage. The supplied MindTechB2B logo appears in the shared workspace navigation and header.
+MindTechB2B is an online-only project and operations workspace deployed at https://atrangiboy-star.github.io/MindtechB2B/.
 
-## Working features
+## Online services
 
-- Create, edit, search, filter, and delete tasks with a department, owner, status, priority, deadline, progress, and description.
-- Overview, master tracker, Kanban, deadline calendar, department summaries, and CSV reports.
-- Add departments, switch light/dark themes, and enable local due-date reminders. Reminders run while the workspace is open and never change task status.
-- Export or restore a JSON workspace backup from Settings.
-- Responsive layout and browser-side persistence across refreshes on the same device/browser.
+- GitHub Pages hosts the React application.
+- Supabase provides company sign-up, password sign-in, authenticator OTP (TOTP), PostgreSQL data, row-level security, and realtime task updates.
+- The Supabase URL and publishable client key are public browser configuration. Database access is controlled by the SQL policies in `supabase/schema.sql`. Never put a Supabase `service_role` key in this repository or the browser app.
 
-## Limits of browser-only mode
+## Database setup
 
-This is a single-browser workspace. It does not sync between employees or devices, and browser storage can be cleared by the user or browser. Export backups regularly. There is no secure login, password, OTP, role enforcement, shared database, server-side audit log, uploads, or background notifications without a backend. The `@mindtechb2b.com` domain and superadmin address cannot be securely enforced in a static site.
+Before using the hosted site, run `supabase/schema.sql` once in the Supabase SQL Editor for the MindTechB2B project. It creates the workspace/profile/department/board/task tables, records task history, restricts accounts to `@mindtechb2b.com`, assigns Administrator to `amaan.d@mindtechb2b.com`, and protects records with RLS. It also adds workspace tasks to Supabase Realtime.
 
-## GitHub Pages
+In Supabase Authentication URL settings, set the site URL and an allowed redirect URL to:
 
-The deployed page is `https://atrangiboy-star.github.io/MindtechB2B/`. GitHub Actions runs `npm ci`, type-checks and builds with `npm run build`, then deploys `dist` on pushes to `main`. No repository secrets are required.
+`https://atrangiboy-star.github.io/MindtechB2B/`
+
+Keep email confirmation enabled. Team members sign up with a company email and password, confirm through their inbox, then set up an authenticator app at first sign-in. The exact superadmin email receives the Administrator role through the database trigger; other company accounts receive Team Member access.
 
 ## Local development
 
-Requires Node.js 22 or later.
+1. Copy `.env.example` to `.env.local`.
+2. Run `npm install`.
+3. Run `npm run dev`.
 
-```sh
-npm ci
-npm run dev
-npm run build
-npm run preview
-```
-
-Repository: https://github.com/atrangiboy-star/MindtechB2B
+`npm run build` type-checks and builds the static site. GitHub Actions injects the public Supabase client configuration during deployment; no repository secrets are required for the publishable key.
 

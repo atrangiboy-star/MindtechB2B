@@ -26,6 +26,9 @@ jobs:
         run: npm ci
       - name: Type-check and build
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://daasbihyzdrkfjlcweqx.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_XPeFMq6e856l2UeGU948Bw_Kyda6BOi
       - name: Configure Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
