@@ -10,13 +10,20 @@ MindTechB2B is an online-only project and operations workspace deployed at https
 
 ## Database setup
 
-Before using the hosted site, run `supabase/schema.sql` once in the Supabase SQL Editor for the MindTechB2B project. It creates the workspace/profile/department/board/task tables, records task history, restricts accounts to `@mindtechb2b.com`, assigns Administrator to `amaan.d@mindtechb2b.com`, and protects records with RLS. It also adds workspace tasks to Supabase Realtime.
+Apply the SQL files in this order in the Supabase SQL Editor for the MindTechB2B project:
+
+1. `supabase/schema.sql` (workspace, profiles, departments, boards, tasks, and RLS)
+2. `supabase/board-access-migration.sql` (board membership and scoped board/task access)
+3. `supabase/member-photos-migration.sql` (private organization profile photos)
+4. `supabase/role-departments-comments-logs-migration.sql` (Super Admin/Administrator roles, department grants, per-cell comments, scoped activity logs, and admin-only master tracker access)
+
+The final migration updates existing row-level security policies. Do not omit it if you want the role, comment, department-access, and activity-log features to work.
 
 In Supabase Authentication URL settings, set the site URL and an allowed redirect URL to:
 
 `https://atrangiboy-star.github.io/MindtechB2B/`
 
-Keep email confirmation enabled. Team members sign up with a company email and password, confirm through their inbox, then set up an authenticator app at first sign-in. The exact superadmin email receives the Administrator role through the database trigger; other company accounts receive Team Member access.
+Keep email confirmation enabled. Team members sign up with a company email and password, confirm through their inbox, then set up an authenticator app at first sign-in. The `amaan.d@mindtechb2b.com` account is the bootstrap Super Admin. Other company accounts receive Team Member access until the Super Admin assigns a role or department from Settings.
 
 ## Local development
 
