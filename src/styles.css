@@ -114,3 +114,67 @@ html[data-theme=dark]{color-scheme:dark;--bg:#101522;--surface:#171e2d;--surface
 /* Safe department deletion, department table management, and row formulas */
 .department-card-wrap{display:grid;grid-template-rows:1fr auto;gap:8px;min-width:0}.department-card-wrap .department-visual-card{height:100%;min-height:220px}.department-delete-button{display:flex;align-items:center;justify-content:center;gap:7px;width:max-content;margin:0 0 0 auto;padding:7px 10px;border:1px solid #f0d8d8;border-radius:9px;background:#fff;color:#bd4545;font-size:11px;font-weight:700;transition:background .18s ease,border-color .18s ease}.department-delete-button:hover{background:#fff4f3;border-color:#e9b6b6}.archived-departments{display:grid;grid-template-columns:minmax(180px,.65fr) minmax(0,1.35fr);gap:20px;align-items:start;margin-top:25px;padding:20px 22px;border:1px solid #e5e9f2;border-radius:14px;background:linear-gradient(120deg,#fff,#f8faff)}.archived-departments h3{margin:1px 0 5px;font-size:14px}.archived-departments p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}.archived-department-list{display:grid;gap:8px}.archived-department-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e8ecf4;border-radius:10px;background:white}.archived-department-row>span{display:grid;gap:3px;min-width:0}.archived-department-row b{font-size:12px}.archived-department-row small{color:var(--muted);font-size:10px}.archived-department-row .secondary-button{min-height:32px;white-space:nowrap}.department-table-item{display:flex;align-items:center;gap:5px;flex:0 0 auto}.department-table-item .department-table-tab{height:100%}.department-table-delete{width:30px;height:34px;display:grid;place-items:center;flex:0 0 auto;border:1px solid #f0dcdc;border-radius:8px;background:#fff;color:#bf4c4c;transition:background .18s ease,border-color .18s ease}.department-table-delete:hover{background:#fff2f1;border-color:#e8b6b6}.row-formula-edit{display:inline-grid;place-items:center;width:24px;height:24px;margin:2px 3px;border:1px solid #dbe3fa;border-radius:6px;background:#fff;color:#315be8;vertical-align:middle}.row-formula-edit:hover{background:#edf2ff}
 @media(max-width:700px){.archived-departments{grid-template-columns:1fr;padding:16px}.department-delete-button{margin-right:0}}
+
+/* Workspace motion: give every view and editable control clear, restrained feedback. */
+@keyframes workspace-enter{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes field-enter{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes field-focus{0%{box-shadow:0 0 0 0 #315be800}55%{box-shadow:0 0 0 4px #315be826}100%{box-shadow:0 0 0 3px #315be81c}}
+@keyframes check-pop{0%{transform:scale(.82)}70%{transform:scale(1.13)}100%{transform:scale(1)}}
+@keyframes menu-enter{from{opacity:0;transform:translateY(-5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes dialog-enter{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes badge-change{from{opacity:.5;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes row-enter{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:translateX(0)}}
+
+.content>*{animation-duration:.36s;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+.content>.page-heading{animation-delay:0ms}
+.content>.metric-grid,.content>.overview-grid{animation-delay:45ms}
+.metric-card:nth-child(2),.department-card-wrap:nth-child(2),.member-card:nth-child(2){animation-delay:35ms}
+.metric-card:nth-child(3),.department-card-wrap:nth-child(3),.member-card:nth-child(3){animation-delay:70ms}
+.metric-card:nth-child(4),.department-card-wrap:nth-child(4),.member-card:nth-child(4){animation-delay:105ms}
+.department-card-wrap:nth-child(5),.member-card:nth-child(5){animation-delay:140ms}
+.department-card-wrap:nth-child(6),.member-card:nth-child(6){animation-delay:175ms}
+.department-detail-heading,.department-table-manager,.master-department-group,.archived-department-row{animation:workspace-enter .34s cubic-bezier(.2,.7,.2,1) both}
+.department-detail-stats>span{animation:workspace-enter .3s ease both}
+.department-detail-stats>span:nth-child(2){animation-delay:45ms}.department-detail-stats>span:nth-child(3){animation-delay:90ms}
+
+button:not(:disabled){transition:transform .17s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease,color .2s ease,filter .2s ease}
+button:not(:disabled):hover{filter:saturate(1.05)}
+button:not(:disabled):active{transform:scale(.975)}
+a{transition:color .18s ease,opacity .18s ease}
+.panel,.metric-card,.department-card,.kanban-card,.chart-card,.member-card,.department-table-tab,.master-department-group,.archived-department-row{transition:transform .22s cubic-bezier(.2,.7,.2,1),box-shadow .22s ease,border-color .22s ease,background-color .22s ease}
+.metric-card:hover,.chart-card:hover,.member-card:hover,.archived-department-row:hover{transform:translateY(-2px);box-shadow:0 12px 28px #253c6814;border-color:#d8e1f3}
+.kanban-card:hover{transform:translateY(-2px);box-shadow:0 9px 20px #253c6818}
+.department-table-tab:active{transform:scale(.985)}
+
+input:not([type=checkbox]):not([type=radio]):not([type=color]),select,textarea{
+  transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease,transform .18s ease;
+  animation:field-enter .24s ease both;
+}
+input:not([type=checkbox]):not([type=radio]):not([type=color]):hover,select:hover,textarea:hover{border-color:#ccd7ec}
+input:not([type=checkbox]):not([type=radio]):not([type=color]):focus,select:focus,textarea:focus{
+  border-color:#7895ff!important;
+  box-shadow:0 0 0 3px #315be81c;
+  transform:translateY(-1px);
+  outline:none;
+  animation:field-focus .34s ease-out both;
+}
+input[type=checkbox],input[type=radio]{transition:transform .16s ease,filter .16s ease}
+input[type=checkbox]:checked,input[type=radio]:checked{animation:check-pop .2s ease both}
+input[type=checkbox]:hover,input[type=radio]:hover{transform:scale(1.08)}
+.searchbox:focus-within,.board-filter-bar:focus-within,.filter-row:focus-within{border-color:#c7d4ff;box-shadow:0 0 0 3px #315be80d;transition:border-color .2s ease,box-shadow .2s ease}
+.feature-panel tbody tr{animation:row-enter .22s ease both}
+.status-badge,.priority-badge,.department-tag{animation:badge-change .2s ease both;transition:transform .16s ease,box-shadow .16s ease}
+.status-badge:hover,.priority-badge:hover,.department-tag:hover{transform:translateY(-1px);box-shadow:0 3px 8px #253c6812}
+.brand-menu,.board-menu,.export-fields-menu[open]>div,.cell-comments,[role=menu]{transform-origin:top center;animation:menu-enter .18s cubic-bezier(.2,.7,.2,1) both}
+.modal-backdrop{animation:segment-in .2s ease both}
+.modal-backdrop .modal,.modal-backdrop [role=dialog],.comment-thread{animation:dialog-enter .24s cubic-bezier(.2,.7,.2,1) both}
+.toast{animation:workspace-enter .24s ease both}
+.row-formula-edit,.department-table-delete,.department-delete-button,.cell-comment-trigger,.icon-button{transition:transform .17s ease,background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,opacity .18s ease}
+.row-formula-edit:hover,.department-table-delete:hover,.department-delete-button:hover,.cell-comment-trigger:hover,.icon-button:hover{transform:translateY(-1px)}
+
+@media(prefers-reduced-motion:reduce){
+  .content>*,.department-detail-heading,.department-table-manager,.master-department-group,.archived-department-row,.department-detail-stats>span,
+  input,select,textarea,.feature-panel tbody tr,.status-badge,.priority-badge,.department-tag,.brand-menu,.board-menu,.export-fields-menu[open]>div,.cell-comments,
+  .modal-backdrop,.modal-backdrop .modal,.modal-backdrop [role=dialog],.comment-thread,.toast{animation:none!important}
+  button:not(:disabled):active,input[type=checkbox]:hover,input[type=radio]:hover,.metric-card:hover,.chart-card:hover,.member-card:hover,.kanban-card:hover{transform:none!important}
+}
