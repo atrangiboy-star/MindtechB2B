@@ -60,3 +60,27 @@ html[data-theme=dark]{color-scheme:dark;--bg:#101522;--surface:#171e2d;--surface
 .activity-entry{align-items:flex-start!important}.activity-entry>span{flex:1}.activity-entry small{display:block;margin-top:4px;color:var(--muted);font-size:9px}.activity-entry time{color:var(--muted);font-size:9px;white-space:nowrap}.feature-panel td{position:relative}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
+
+/* Department tables and the MindTechB2B hero mark */
+.department-table-manager{display:grid;gap:11px;margin:0 0 15px;padding:14px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(135deg,#fff,#f9faff)}
+.department-table-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.department-table-heading>div{display:grid;gap:3px}
+.department-table-heading b{color:var(--text);font-size:12px}
+.department-table-heading span,.department-table-form small{color:var(--muted);font-size:9px;line-height:1.45}
+.department-table-tabs{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding:2px 0 5px}
+.department-table-tab{min-width:126px;display:grid;gap:4px;text-align:left;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text);transition:border-color .18s,background .18s,transform .18s}
+.department-table-tab:hover{border-color:#bdcaff;transform:translateY(-1px)}
+.department-table-tab.active{border-color:#9eb3ff;background:#edf2ff;box-shadow:0 4px 12px #315be812}
+.department-table-tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:800}
+.department-table-tab small{color:var(--muted);font-size:8px}
+.department-table-empty{padding:9px 2px;color:var(--muted);font-size:10px}
+.department-table-form{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(210px,1.6fr) minmax(180px,1fr);align-items:center;gap:9px;padding-top:10px;border-top:1px solid var(--line)}
+.department-table-form input,.department-table-form textarea{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-size:10px}
+.department-table-form textarea{min-height:45px;resize:vertical;line-height:1.45}
+.department-table-form>div{display:grid;justify-items:start;gap:7px}
+.department-table-form .primary-button{padding:8px 12px;font-size:10px}
+.hero-art-core{width:min(152px,100%);height:60px;padding:6px;border:5px solid #ffffffc7;border-radius:18px;background:#fff;box-shadow:0 15px 28px #315be838}
+.hero-art-logo{display:block;width:100%;height:100%;object-fit:contain;transform-origin:center;animation:brand-logo-float 4.8s ease-in-out infinite}
+@media(max-width:760px){.department-table-form{grid-template-columns:1fr}.department-table-form>div{display:flex;align-items:center;justify-content:space-between;width:100%;gap:9px}.department-table-tabs{margin-right:-2px}}
+@media(prefers-reduced-motion:reduce){.hero-art-logo{animation:none}}
+
