@@ -58,8 +58,14 @@ create policy "department members read board columns" on public.board_columns fo
 drop policy if exists "admins manage board columns" on public.board_columns;
 drop policy if exists "department members manage board columns" on public.board_columns;
 create policy "department members manage board columns" on public.board_columns for all to authenticated
-  using (public.can_manage_board_columns(board_id))
-  with check (public.can_manage_board_columns(board_id));
+  using (
+    public.can_manage_board_columns(board_id)
+    and (column_type <> 'formula' or public.is_workspace_admin())
+  )
+  with check (
+    public.can_manage_board_columns(board_id)
+    and (column_type <> 'formula' or public.is_workspace_admin())
+  );
 
 -- Keep department scoped rows even though department members can see the shared board schema.
 drop policy if exists "company employees read tasks" on public.workspace_tasks;
