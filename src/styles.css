@@ -84,3 +84,29 @@ html[data-theme=dark]{color-scheme:dark;--bg:#101522;--surface:#171e2d;--surface
 @media(max-width:760px){.department-table-form{grid-template-columns:1fr}.department-table-form>div{display:flex;align-items:center;justify-content:space-between;width:100%;gap:9px}.department-table-tabs{margin-right:-2px}}
 @media(prefers-reduced-motion:reduce){.hero-art-logo{animation:none}}
 
+
+/* Master tracker grouped by department */
+.master-tracker-summary{display:flex;align-items:baseline;gap:7px;margin:2px 0 13px;color:var(--muted);font-size:10px}
+.master-tracker-summary>b{color:var(--text);font:800 18px Manrope,sans-serif}
+.master-tracker-summary>i{font-style:normal;color:#c3cad6}
+.master-department-groups{display:grid;gap:10px}
+.master-department-group{overflow:hidden;border:1px solid var(--line);border-left:3px solid var(--dept-color,#315be8);border-radius:11px;background:var(--surface);box-shadow:0 4px 15px #24355f08}
+.master-department-group>summary{display:grid;grid-template-columns:36px minmax(140px,1fr) auto auto minmax(110px,.4fr) 18px;align-items:center;gap:12px;min-height:66px;padding:10px 13px;cursor:pointer;list-style:none;transition:background .16s}
+.master-department-group>summary::-webkit-details-marker{display:none}
+.master-department-group>summary:hover,.master-department-group[open]>summary{background:color-mix(in srgb,var(--dept-tint,#edf2ff),white 45%)}
+.master-department-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--dept-tint,#edf2ff);color:var(--dept-color,#315be8)}
+.master-department-name{display:grid;gap:3px;min-width:0}
+.master-department-name>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font:800 12px Manrope,sans-serif}
+.master-department-name>small,.master-department-metric>small{color:var(--muted);font-size:9px}
+.master-department-metric{display:grid;justify-items:end;gap:2px;min-width:58px;padding:5px 9px;border-radius:7px;background:#f4f6fa;color:#48566d}
+.master-department-metric>b{font-size:11px}
+.master-department-metric.completed{background:#eaf8f1;color:#16825d}
+.master-department-progress{display:grid;gap:5px;color:var(--muted);font-size:8px}
+.master-department-progress>i{height:5px;overflow:hidden;border-radius:99px;background:#e9edf4}
+.master-department-progress em{display:block;height:100%;border-radius:inherit;background:var(--dept-color,#315be8);transition:width .25s}
+.master-department-chevron{color:#8b96aa;transition:transform .18s}
+.master-department-group[open] .master-department-chevron{transform:rotate(180deg)}
+.master-department-group>.table-wrap{padding:0 10px 8px}
+.master-department-group>.table-wrap th:first-child,.master-department-group>.table-wrap td:first-child{padding-left:13px}
+@media(max-width:760px){.master-department-group>summary{grid-template-columns:34px minmax(0,1fr) auto 18px;gap:8px;padding:9px}.master-department-progress{display:none}.master-department-metric{min-width:49px;padding:5px 6px}}
+
