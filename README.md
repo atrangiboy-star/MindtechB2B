@@ -16,8 +16,12 @@ Apply the SQL files in this order in the Supabase SQL Editor for the MindTechB2B
 2. `supabase/board-access-migration.sql` (board membership and scoped board/task access)
 3. `supabase/member-photos-migration.sql` (private organization profile photos)
 4. `supabase/role-departments-comments-logs-migration.sql` (Super Admin/Administrator roles, department grants, per-cell comments, scoped activity logs, and admin-only master tracker access)
+5. `supabase/department-board-edit-access-migration.sql` (department-member board and column access)
+6. `supabase/department-archive-migration.sql` (department archive/restore and authorized table deletion)
+7. `supabase/purge-archived-departments.sql` (permanent deletion of already archived departments)
+8. `supabase/aal2-enforcement-migration.sql` (requires verified authenticator OTP for department, board, task, comment, log, and saved-view data access)
 
-The final migration updates existing row-level security policies. Do not omit it if you want the role, comment, department-access, and activity-log features to work.
+Apply all migrations in order before launch. The final migration closes an MFA enforcement gap in the database policies; the UI's OTP screen alone is not a data-access boundary.
 
 In Supabase Authentication URL settings, set the site URL and an allowed redirect URL to:
 
