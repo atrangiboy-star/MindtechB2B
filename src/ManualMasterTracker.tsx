@@ -9,6 +9,7 @@ type ManualColumn = { id: string; name: string; kind: ColumnKind; formula: strin
 type ManualRow = { id: string; values: Record<string, string | boolean> };
 type TrackerConfig = { columns: ManualColumn[]; rows: ManualRow[] };
 type Props = { supabase: SupabaseClient | null; user: User; notify: (message: string) => void };
+const trackerKind = "mindtech_manual_master_tracker";
 const kinds: { value: ColumnKind; label: string }[] = [
   { value: "text", label: "Text" }, { value: "number", label: "Number" }, { value: "date", label: "Date" },
   { value: "dropdown", label: "Dropdown" }, { value: "checkbox", label: "Checkbox" }, { value: "formula", label: "Formula" },
@@ -40,9 +41,10 @@ export default function ManualMasterTracker({ supabase, user, notify }: Props) {
     let alive = true;
     const load = async () => {
       if (!supabase) { setReady(true); return; }
-      const { data, error } = await supabase.from("saved_views").select("id,configuration").eq("view_type", "master_tracker").order("created_at", { ascending: true }).limit(1).maybeSingle();
+      const { data: storedViews, error } = await supabase.from("saved_views").select("id,configuration").eq("view_type", "table").eq("name", "Master Tracker").order("created_at", { ascending: true });
       if (!alive) return;
       if (error) notify(`Blank Master Tracker could not load: ${error.message}`);
+      const data = (storedViews ?? []).find(view => view.configuration?.kind === trackerKind);
       if (data) {
         const config = parseConfig(data.configuration);
         setRecordId(String(data.id)); setColumns(config.columns); setRows(config.rows);
@@ -58,10 +60,10 @@ export default function ManualMasterTracker({ supabase, user, notify }: Props) {
     const saveRevision = revision.current;
     const timer = window.setTimeout(async () => {
       setSaving(true);
-      const configuration = { columns, rows };
+      const configuration = { kind: trackerKind, columns, rows };
       const result = recordId
         ? await supabase.from("saved_views").update({ name: "Master Tracker", configuration }).eq("id", recordId)
-        : await supabase.from("saved_views").insert({ owner_id: user.id, name: "Master Tracker", view_type: "master_tracker", configuration }).select("id").single();
+        : await supabase.from("saved_views").insert({ owner_id: user.id, name: "Master Tracker", view_type: "table", configuration }).select("id").single();
       setSaving(false);
       if (result.error) { setSaveError(true); setDirty(false); notify(`Master Tracker was not saved: ${result.error.message}`); return; }
       if (!recordId && result.data) setRecordId(String(result.data.id));

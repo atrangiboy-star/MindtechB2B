@@ -100,6 +100,8 @@ function ReportVisual({ type, rows, totalLabel, totalValue, metricLabel }: { typ
 
 export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, notify }: Props) {
   const [sources, setSources] = useState<BoardSource[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [sourceError, setSourceError] = useState("");
   const [columns, setColumns] = useState<ReportColumn[]>([]);
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [reportName, setReportName] = useState("");
@@ -124,10 +126,14 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
       supabase.from("board_columns").select("id,board_id,name,column_type,is_hidden").order("position"),
       supabase.from("saved_views").select("id,name,configuration,created_at").eq("owner_id", user.id).eq("view_type", "dashboard").order("created_at"),
     ]);
-    if (boardError || departmentError || columnError || savedError) {
-      const error = boardError ?? departmentError ?? columnError ?? savedError;
-      notify(`Reports could not be loaded: ${error?.message ?? "Unknown database error"}`); return;
+    if (boardError) {
+      setSources([]); setSourceError(boardError.message); setSourcesLoading(false);
+      notify(`Accessible boards could not be loaded: ${boardError.message}`); return;
     }
+    setSourceError(""); setSourcesLoading(false);
+    if (departmentError) notify(`Department names could not be loaded: ${departmentError.message}`);
+    if (columnError) notify(`Board fields could not be loaded: ${columnError.message}`);
+    if (savedError) notify(`Saved reports could not be loaded: ${savedError.message}`);
     const departmentNames = new Map((departmentRows ?? []).map(row => [String(row.id), String(row.name)]));
     setSources((boardRows ?? []).map(row => ({ id: String(row.id), name: String(row.name), departmentId: row.department_id ? String(row.department_id) : null, departmentName: row.department_id ? departmentNames.get(String(row.department_id)) ?? "Other" : "Other" })));
     setColumns((columnRows ?? []) as ReportColumn[]);
@@ -267,7 +273,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const matchingTaskCount = selectedBoards.length ? tasks.filter(task => selectedBoards.includes(task.board_id ?? "")).length : 0;
 
   return <div className="reports-workspace">
-    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>Reports</h2><p>Start with a blank canvas. Select the department boards and chart logic you want; nothing is automatically mapped into reports.</p></div><div className="reports-hero-actions"><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
+    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>BI Dashboard</h2><p>Create visual reports from the department boards you choose. Board fields and chart logic are never connected automatically.</p></div><div className="reports-hero-actions"><button className="primary-button" onClick={() => document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Plus size={15}/> Create visual</button><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
 
     <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Selected source rows</span><b>{matchingTaskCount}</b><small>{selectedBoards.length ? "From boards you selected" : "No source data selected"}</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
 
@@ -280,14 +286,14 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
         {chartType === "stacked" && <label className="reports-field">Stack series by<select value={seriesBy} onChange={event => setSeriesBy(event.target.value)}><option value="">Choose series</option>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>}
         <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}><option value="">Choose a date window</option>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
       </div>
-      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Connect department boards</b><small>Boards stay disconnected until you check them. Selecting sources is manual.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => setSelectedBoards(allBoardsSelected ? [] : sources.map(source => source.id))}/> Select all accessible boards</label></div>
+      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Connect department boards</b><small>Only boards granted to your account appear here. Ask your Super Admin for additional department access.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => setSelectedBoards(allBoardsSelected ? [] : sources.map(source => source.id))}/> Select all accessible boards</label></div>
         <label className="reports-source-search"><Search size={15}/><input type="search" value={sourceSearch} onChange={event => setSourceSearch(event.target.value)} placeholder="Search departments and boards"/></label>
-        {groupedSources.length ? <div className="reports-source-groups">{groupedSources.map(([department, boards]) => <section key={department}><div className="reports-department-source"><b>{department}</b><small>{boards.length} {boards.length === 1 ? "board" : "boards"}</small></div>{boards.map(board => <label className="reports-board-source" key={board.id}><input type="checkbox" checked={selectedBoards.includes(board.id)} onChange={() => toggleBoard(board.id)}/><span><b>{board.name}</b><small>{board.departmentName}</small></span></label>)}</section>)}</div> : <div className="reports-no-sources"><b>No accessible boards found.</b><span>Ask your administrator to grant board or department access.</span></div>}
+        {sourcesLoading ? <div className="reports-no-sources"><b>Loading accessible boards…</b></div> : sourceError ? <div className="reports-no-sources"><b>Boards could not be loaded.</b><span>{sourceError}</span><button className="secondary-button" onClick={() => void load()}>Retry</button></div> : groupedSources.length ? <div className="reports-source-groups">{groupedSources.map(([department, boards]) => <section key={department}><div className="reports-department-source"><b>{department}</b><small>{boards.length} {boards.length === 1 ? "board" : "boards"}</small></div>{boards.map(board => <label className="reports-board-source" key={board.id}><input type="checkbox" checked={selectedBoards.includes(board.id)} onChange={() => toggleBoard(board.id)}/><span><b>{board.name}</b><small>{board.departmentName}</small></span></label>)}</section>)}</div> : <div className="reports-no-sources"><b>No boards are available to this account.</b><span>Board access is enforced by Supabase. Ask the Super Admin to grant access to the departments you need.</span></div>}
       </div>
       <div className="reports-builder-footer"><span>Only records from your selected boards and workspace permissions are included.</span><div>{editingId && <button className="secondary-button" onClick={resetForm}><X size={15}/> Cancel edit</button>}<button className="primary-button" disabled={busy || !reportName.trim() || !selectedBoards.length || !chartType || !dimension || !metricField || !aggregation || !dateRange || (chartType === "stacked" && !seriesBy)} onClick={() => void saveReport()}><Save size={15}/>{busy ? "Saving…" : editingId ? "Save changes" : "Add to Reports"}</button></div></div>
     </section>
 
-    <div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE CANVAS</div><h3>Your reports</h3><p>Charts use saved source boards and refresh with shared task data.</p></div><span>{reports.length} {reports.length === 1 ? "report" : "reports"}</span></div>
+    <div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE CANVAS</div><h3>Dashboard canvas</h3><p>Saved visuals update from the board sources chosen for each report.</p></div><span>{reports.length} {reports.length === 1 ? "report" : "reports"}</span></div>
     {reports.length ? <div className="reports-grid">{reports.map(report => {
       const config = normaliseConfig(report.configuration); const { rows, total, totalValue } = makeRows(config);
       const metric = metricFields.find(field => field.value === config.metricField)?.label ?? (config.metricField === "task_count" ? "Tasks" : config.metricField === "progress" ? "Progress (%)" : config.metricField?.slice(6));

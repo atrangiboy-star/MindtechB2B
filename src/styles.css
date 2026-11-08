@@ -289,7 +289,7 @@ html[data-theme=dark] .master-status-breakdown>span:first-child{background:#302b
 /* Reports: multi-board BI workspace */
 .content:has(.reports-workspace)>.page-heading{display:none}
 .content:has(.manual-tracker-panel)>.page-heading{display:none}
-.reports-workspace{display:grid;gap:18px;animation:reports-enter .35s ease both}
+.reports-workspace{display:grid;gap:18px;animation:reports-enter .35s ease both}.reports-hero{order:0}.reports-kpis{order:1}.reports-canvas-heading{order:2}.reports-grid,.reports-first-run{order:3}.reports-builder{order:4}.reports-footnote{order:5}
 @keyframes reports-enter{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 .reports-hero{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:25px 27px;border:1px solid #dbe4ff;border-radius:15px;background:radial-gradient(circle at 82% 20%,#fff1bf 0,transparent 23%),linear-gradient(115deg,#eef2ff 0%,var(--surface) 70%);box-shadow:var(--shadow)}
 .reports-hero:after{content:"";position:absolute;width:180px;height:180px;border:20px solid #315be80c;border-radius:50%;right:10%;top:-122px;pointer-events:none}
