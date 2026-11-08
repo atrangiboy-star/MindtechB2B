@@ -103,12 +103,12 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const [columns, setColumns] = useState<ReportColumn[]>([]);
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [reportName, setReportName] = useState("");
-  const [dimension, setDimension] = useState("status");
-  const [chartType, setChartType] = useState("bar");
-  const [metricField, setMetricField] = useState("task_count");
-  const [aggregation, setAggregation] = useState<"count" | "sum" | "average">("count");
-  const [seriesBy, setSeriesBy] = useState("status");
-  const [dateRange, setDateRange] = useState("all");
+  const [dimension, setDimension] = useState("");
+  const [chartType, setChartType] = useState("");
+  const [metricField, setMetricField] = useState("");
+  const [aggregation, setAggregation] = useState<"count" | "sum" | "average" | "">("");
+  const [seriesBy, setSeriesBy] = useState("");
+  const [dateRange, setDateRange] = useState("");
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [sourceSearch, setSourceSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,22 +145,22 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
 
   const dimensions = useMemo(() => {
     const custom = new Map<string, string>();
-    columns.filter(column => !column.is_hidden).forEach(column => { const key = `field:${safeName(column.name)}`; if (!custom.has(key)) custom.set(key, column.name); });
+    columns.filter(column => !column.is_hidden && selectedBoards.includes(column.board_id)).forEach(column => { const key = `field:${safeName(column.name)}`; if (!custom.has(key)) custom.set(key, column.name); });
     return [...baseDimensions.map(([value, label]) => ({ value, label })), ...[...custom].map(([value, label]) => ({ value, label }))];
-  }, [columns]);
+  }, [columns, selectedBoards]);
   const metricFields = useMemo(() => {
     const custom = new Map<string, string>();
-    columns.filter(column => !column.is_hidden && ["number", "progress", "formula"].includes(column.column_type)).forEach(column => { const key = `field:${safeName(column.name)}`; if (!custom.has(key)) custom.set(key, column.name); });
+    columns.filter(column => !column.is_hidden && selectedBoards.includes(column.board_id) && ["number", "progress", "formula"].includes(column.column_type)).forEach(column => { const key = `field:${safeName(column.name)}`; if (!custom.has(key)) custom.set(key, column.name); });
     return [{ value: "task_count", label: "Task count" }, { value: "progress", label: "Progress (%)" }, ...[...custom].map(([value, label]) => ({ value, label }))];
-  }, [columns]);
+  }, [columns, selectedBoards]);
   const groupedSources = useMemo(() => {
     const groups = new Map<string, BoardSource[]>();
     sources.filter(source => !sourceSearch.trim() || `${source.name} ${source.departmentName}`.toLocaleLowerCase().includes(sourceSearch.trim().toLocaleLowerCase())).forEach(source => groups.set(source.departmentName, [...(groups.get(source.departmentName) ?? []), source]));
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [sources, sourceSearch]);
-  const allBoardsSelected = !selectedBoards.length || selectedBoards.length === sources.length;
-  const selectedSourceCount = selectedBoards.length || sources.length;
-  const selectedDepartmentCount = new Set(sources.filter(source => !selectedBoards.length || selectedBoards.includes(source.id)).map(source => source.departmentName)).size;
+  const allBoardsSelected = sources.length > 0 && selectedBoards.length === sources.length;
+  const selectedSourceCount = selectedBoards.length;
+  const selectedDepartmentCount = new Set(sources.filter(source => selectedBoards.includes(source.id)).map(source => source.departmentName)).size;
   const boardNames = useMemo(() => new Map(sources.map(source => [source.id, source.name])), [sources]);
 
   const customValue = (task: any, key: string) => {
@@ -189,7 +189,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     const ids = configuration.boardIds ?? [];
     const since = configuration.dateRange && configuration.dateRange !== "all" ? Date.now() - Number.parseInt(configuration.dateRange, 10) * 86_400_000 : 0;
     return tasks.filter(task => {
-      if (ids.length && (!task.board_id || !ids.includes(task.board_id))) return false;
+      if (!ids.length || !task.board_id || !ids.includes(task.board_id)) return false;
       if (configuration.departments?.length && !configuration.departments.includes(task.department)) return false;
       if (since) { const created = Date.parse(task.created_at ?? task.updated_at ?? ""); if (!Number.isFinite(created) || created < since) return false; }
       return true;
@@ -219,15 +219,14 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     return { rows, total: items.length, totalValue };
   };
 
-  const resetForm = () => { setReportName(""); setDimension("status"); setChartType("bar"); setMetricField("task_count"); setAggregation("count"); setSeriesBy("status"); setDateRange("all"); setSelectedBoards([]); setEditingId(null); };
+  const resetForm = () => { setReportName(""); setDimension(""); setChartType(""); setMetricField(""); setAggregation(""); setSeriesBy(""); setDateRange(""); setSelectedBoards([]); setEditingId(null); };
   const toggleBoard = (id: string) => setSelectedBoards(current => {
-    const base = current.length ? current : sources.map(source => source.id);
-    const next = base.includes(id) ? base.filter(boardId => boardId !== id) : [...base, id];
-    return next.length === sources.length ? [] : next;
+    return current.includes(id) ? current.filter(boardId => boardId !== id) : [...current, id];
   });
   const saveReport = async () => {
     if (!supabase) return notify("Connect to the workspace before saving reports.");
     const title = reportName.trim(); if (!title) return notify("Enter a report name before saving.");
+    if (!selectedBoards.length || !chartType || !dimension || !metricField || !aggregation || !dateRange || (chartType === "stacked" && !seriesBy)) return notify("Select board sources and report logic before saving.");
     setBusy(true);
     const configuration: ReportConfig = { dimension, chartType, boardIds: selectedBoards, metricField, aggregation, seriesBy, dateRange };
     const result = editingId
@@ -265,35 +264,35 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   };
 
   const availableDepartments = [...new Set(sources.map(source => source.departmentName))].sort((a, b) => a.localeCompare(b));
-  const matchingTaskCount = tasks.filter(task => !selectedBoards.length || selectedBoards.includes(task.board_id)).length;
+  const matchingTaskCount = selectedBoards.length ? tasks.filter(task => selectedBoards.includes(task.board_id ?? "")).length : 0;
 
   return <div className="reports-workspace">
-    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>Reports</h2><p>Build live dashboards from the department boards you can access. Chart sources follow your workspace permissions.</p></div><div className="reports-hero-actions"><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
+    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>Reports</h2><p>Start with a blank canvas. Select the department boards and chart logic you want; nothing is automatically mapped into reports.</p></div><div className="reports-hero-actions"><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
 
-    <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Matching rows</span><b>{matchingTaskCount}</b><small>From selected board sources</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
+    <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Selected source rows</span><b>{matchingTaskCount}</b><small>{selectedBoards.length ? "From boards you selected" : "No source data selected"}</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
 
     <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, measures, and visual that should appear together.</p></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
       <div className="reports-form-grid"><label className="reports-field reports-title-field">Report name<input maxLength={120} value={reportName} onChange={event => setReportName(event.target.value)} placeholder="e.g. Campaign delivery overview"/></label>
-        <label className="reports-field">Chart type<select value={chartType} onChange={event => { setChartType(event.target.value); if (event.target.value === "stacked" && aggregation === "average") setAggregation("sum"); }}>{chartTypes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        <label className="reports-field">Group / category<select value={dimension} onChange={event => setDimension(event.target.value)}>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>
-        <label className="reports-field">Measure<select value={metricField} onChange={event => setMetricField(event.target.value)}>{metricFields.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>
-        <label className="reports-field">Calculation<select value={aggregation} onChange={event => setAggregation(event.target.value as typeof aggregation)}><option value="count">Count records</option><option value="sum">Sum values</option>{chartType !== "stacked" && <option value="average">Average values</option>}</select></label>
-        {chartType === "stacked" && <label className="reports-field">Stack series by<select value={seriesBy} onChange={event => setSeriesBy(event.target.value)}>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>}
-        <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <label className="reports-field">Chart type<select value={chartType} onChange={event => { setChartType(event.target.value); if (event.target.value === "stacked" && aggregation === "average") setAggregation("sum"); }}><option value="">Choose chart type</option>{chartTypes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <label className="reports-field">Group / category<select value={dimension} onChange={event => setDimension(event.target.value)}><option value="">Choose a field</option>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>
+        <label className="reports-field">Measure<select value={metricField} onChange={event => setMetricField(event.target.value)}><option value="">Choose a measure</option>{metricFields.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>
+        <label className="reports-field">Calculation<select value={aggregation} onChange={event => setAggregation(event.target.value as typeof aggregation)}><option value="">Choose calculation</option><option value="count">Count records</option><option value="sum">Sum values</option>{chartType !== "stacked" && <option value="average">Average values</option>}</select></label>
+        {chartType === "stacked" && <label className="reports-field">Stack series by<select value={seriesBy} onChange={event => setSeriesBy(event.target.value)}><option value="">Choose series</option>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>}
+        <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}><option value="">Choose a date window</option>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
       </div>
-      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Connect department boards</b><small>Pick one or more boards. “All accessible boards” uses your current access.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => setSelectedBoards(allBoardsSelected ? [] : sources.map(source => source.id))}/> All accessible boards</label></div>
+      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Connect department boards</b><small>Boards stay disconnected until you check them. Selecting sources is manual.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => setSelectedBoards(allBoardsSelected ? [] : sources.map(source => source.id))}/> Select all accessible boards</label></div>
         <label className="reports-source-search"><Search size={15}/><input type="search" value={sourceSearch} onChange={event => setSourceSearch(event.target.value)} placeholder="Search departments and boards"/></label>
-        {groupedSources.length ? <div className="reports-source-groups">{groupedSources.map(([department, boards]) => <section key={department}><div className="reports-department-source"><b>{department}</b><small>{boards.length} {boards.length === 1 ? "board" : "boards"}</small></div>{boards.map(board => <label className="reports-board-source" key={board.id}><input type="checkbox" checked={allBoardsSelected || selectedBoards.includes(board.id)} onChange={() => toggleBoard(board.id)}/><span><b>{board.name}</b><small>{board.departmentName}</small></span></label>)}</section>)}</div> : <div className="reports-no-sources"><b>No accessible boards found.</b><span>Ask your administrator to grant board or department access.</span></div>}
+        {groupedSources.length ? <div className="reports-source-groups">{groupedSources.map(([department, boards]) => <section key={department}><div className="reports-department-source"><b>{department}</b><small>{boards.length} {boards.length === 1 ? "board" : "boards"}</small></div>{boards.map(board => <label className="reports-board-source" key={board.id}><input type="checkbox" checked={selectedBoards.includes(board.id)} onChange={() => toggleBoard(board.id)}/><span><b>{board.name}</b><small>{board.departmentName}</small></span></label>)}</section>)}</div> : <div className="reports-no-sources"><b>No accessible boards found.</b><span>Ask your administrator to grant board or department access.</span></div>}
       </div>
-      <div className="reports-builder-footer"><span>Only records returned by your workspace permissions are included.</span><div>{editingId && <button className="secondary-button" onClick={resetForm}><X size={15}/> Cancel edit</button>}<button className="primary-button" disabled={busy || !reportName.trim() || !sources.length} onClick={() => void saveReport()}><Save size={15}/>{busy ? "Saving…" : editingId ? "Save changes" : "Add to Reports"}</button></div></div>
+      <div className="reports-builder-footer"><span>Only records from your selected boards and workspace permissions are included.</span><div>{editingId && <button className="secondary-button" onClick={resetForm}><X size={15}/> Cancel edit</button>}<button className="primary-button" disabled={busy || !reportName.trim() || !selectedBoards.length || !chartType || !dimension || !metricField || !aggregation || !dateRange || (chartType === "stacked" && !seriesBy)} onClick={() => void saveReport()}><Save size={15}/>{busy ? "Saving…" : editingId ? "Save changes" : "Add to Reports"}</button></div></div>
     </section>
 
     <div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE CANVAS</div><h3>Your reports</h3><p>Charts use saved source boards and refresh with shared task data.</p></div><span>{reports.length} {reports.length === 1 ? "report" : "reports"}</span></div>
     {reports.length ? <div className="reports-grid">{reports.map(report => {
       const config = normaliseConfig(report.configuration); const { rows, total, totalValue } = makeRows(config);
       const metric = metricFields.find(field => field.value === config.metricField)?.label ?? (config.metricField === "task_count" ? "Tasks" : config.metricField === "progress" ? "Progress (%)" : config.metricField?.slice(6));
-      const sourceCount = config.boardIds?.length ? config.boardIds.length : sources.length;
-      const departmentCount = new Set(sources.filter(source => !config.boardIds?.length || config.boardIds.includes(source.id)).map(source => source.departmentName)).size;
+      const sourceCount = config.boardIds?.length ?? 0;
+      const departmentCount = new Set(sources.filter(source => config.boardIds?.includes(source.id)).map(source => source.departmentName)).size;
       return <article className={`panel report-card report-card-${config.chartType}`} key={report.id}><header className="report-card-head"><div><span className="report-type-label">{chartTypes.find(([type]) => type === config.chartType)?.[1] ?? "Report"}</span><h4>{report.name}</h4><p>{departmentCount} departments · {sourceCount} boards · {total} matching rows</p></div><div className="report-card-actions"><button className="icon-button" title="Export chart data as CSV" aria-label={`Export ${report.name} as CSV`} onClick={() => exportCsv(report)}><Download size={15}/></button><button className="icon-button" title="Edit report" aria-label={`Edit ${report.name}`} onClick={() => editReport(report)}><Save size={15}/></button><button className="icon-button report-delete-button" title="Delete report" aria-label={`Delete ${report.name}`} onClick={() => void removeReport(report)}><Trash2 size={15}/></button></div></header><ReportVisual type={config.chartType} rows={rows} totalLabel={total} totalValue={totalValue} metricLabel={metric ?? "Tasks"}/></article>;
     })}</div> : <section className="panel reports-first-run"><div className="reports-first-icon"><BarChart3 size={25}/></div><h3>Your BI workspace is ready</h3><p>Select boards from multiple departments, choose a measure and chart type, then add your first report.</p><button className="primary-button" onClick={() => document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Plus size={15}/> Start building</button></section>}
     <div className="reports-footnote">Reports show data available to your signed-in account. Board permissions are enforced by Supabase row-level security.</div>
