@@ -269,6 +269,8 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("mindtech.reports.autoRefresh") !== "false");
+  const [draftHydratedFor, setDraftHydratedFor] = useState("");
+  const reportDraftKey = `mindtech.reports.builderDraft.${user.id}`;
   const refreshRef = useRef(refreshTasks);
 
   const load = async () => {
@@ -330,8 +332,68 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const activeDataFields = selectedDataFields ?? dataFieldChoices.map(field => field.value);
   const selectedDataFieldChoices = dataFieldChoices.filter(field => activeDataFields.includes(field.value));
   const visibleFieldChoices = allFieldChoices.filter(field => !fieldSearch.trim() || `${field.label} ${field.value}`.toLocaleLowerCase().includes(fieldSearch.trim().toLocaleLowerCase()));
-  const selectedVisualizations = [...new Set([chartType, ...additionalVisuals].filter(Boolean))];
+  const selectedVisualizations = useMemo(() => [...new Set([chartType, ...additionalVisuals].filter(Boolean))], [chartType, additionalVisuals]);
   const invalidCustomDateRange = dateRange === "custom" && ((!dateFrom && !dateTo) || Boolean(dateFrom && dateTo && dateFrom > dateTo));
+
+  useEffect(() => {
+    if (sourcesLoading && supabase) return;
+    setDraftHydratedFor("");
+    try {
+      const draft = JSON.parse(localStorage.getItem(reportDraftKey) || "null");
+      if (draft?.version === 1 && draft.configuration && typeof draft.configuration === "object") {
+        const config = normaliseConfig(draft.configuration);
+        const accessibleBoardIds = new Set(sources.map(source => source.id));
+        const restoredChartType = chartTypes.some(([type]) => type === config.chartType) ? config.chartType : "bar";
+        const restoredVisuals = (config.visualizations ?? []).filter(type => chartTypes.some(([value]) => value === type));
+        setReportName(typeof draft.reportName === "string" ? draft.reportName : "");
+        setDimension(typeof draft.dimension === "string" ? draft.dimension : config.dimension);
+        setChartType(restoredChartType);
+        setAdditionalVisuals(restoredVisuals.filter(type => type !== restoredChartType));
+        setMetricField(config.metricField ?? "task_count");
+        setAggregation(config.aggregation ?? "count");
+        setSeriesBy(config.seriesBy ?? "status");
+        setDateRange(config.dateRange ?? "all");
+        setDateFrom(config.dateFrom ?? "");
+        setDateTo(config.dateTo ?? "");
+        setBinWidth(config.binWidth ? String(config.binWidth) : "");
+        setFieldMappings(config.fieldMappings ?? []);
+        setMappingName(typeof draft.mappingName === "string" ? draft.mappingName : "");
+        setMappingRole(draft.mappingRole === "measure" ? "measure" : "category");
+        setMappingColumns(draft.mappingColumns && typeof draft.mappingColumns === "object" ? draft.mappingColumns : {});
+        setFilters(config.filters ?? []);
+        setFilterLogic(config.filterLogic ?? "all");
+        setRowFields(config.pivotRows ?? [config.dimension]);
+        setColumnFields(config.pivotColumns ?? []);
+        setValueFields(config.pivotValues?.length ? config.pivotValues : [{ field: config.metricField ?? "task_count", aggregation: config.aggregation ?? "count" }]);
+        setFilterFieldKeys(config.filterFields ?? (config.filters ?? []).map(filter => filter.field));
+        setSelectedBoards((config.boardIds ?? []).filter(id => accessibleBoardIds.has(id)));
+        setSelectedDataFields(Array.isArray(draft.selectedDataFields) ? draft.selectedDataFields.filter((field: unknown): field is string => typeof field === "string") : config.dataFields ?? null);
+        setSourceDepartment(typeof draft.sourceDepartment === "string" ? draft.sourceDepartment : "__all_departments__");
+        setSourceBoard(typeof draft.sourceBoard === "string" ? draft.sourceBoard : "__all_tables__");
+        setEditingId(typeof draft.editingId === "string" ? draft.editingId : null);
+      }
+    } catch {
+      // Ignore malformed local drafts and leave the report builder at its defaults.
+    }
+    setDraftHydratedFor(reportDraftKey);
+  }, [reportDraftKey, sourcesLoading, sources, supabase]);
+
+  useEffect(() => {
+    if (sourcesLoading && supabase || draftHydratedFor !== reportDraftKey) return;
+    const configuration: ReportConfig = {
+      dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards,
+      metricField: valueFields[0]?.field ?? "task_count", aggregation: valueFields[0]?.aggregation ?? "count",
+      seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings,
+      binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields,
+      pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations,
+      dataFields: selectedDataFields ?? undefined,
+    };
+    try {
+      localStorage.setItem(reportDraftKey, JSON.stringify({ version: 1, reportName, dimension, configuration, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns }));
+    } catch {
+      // A full or unavailable browser storage must not block report editing.
+    }
+  }, [reportDraftKey, draftHydratedFor, sourcesLoading, supabase, reportName, dimension, chartType, selectedBoards, valueFields, columnFields, seriesBy, dateRange, dateFrom, dateTo, fieldMappings, binWidth, filters, filterLogic, rowFields, filterFieldKeys, selectedVisualizations, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns]);
 
   const columnValue = (task: any, column: ReportColumn) => {
     if (column.column_type !== "formula") return task.custom_fields?.[column.id];
@@ -753,7 +815,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
 
     <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Selected source rows</span><b>{matchingTaskCount}</b><small>{selectedBoards.length ? "From boards you selected" : "No source data selected"}</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
 
-    <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, measures, and visual that should appear together.</p></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
+    <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, fields, and chart; this setup and its filters restore after a refresh in this browser.</p></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
       <div className="reports-form-grid"><label className="reports-field reports-title-field">Report name<input maxLength={120} value={reportName} onChange={event => setReportName(event.target.value)} placeholder="e.g. Campaign delivery overview"/></label>
         <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         {dateRange === "custom" && <><label className="reports-field">Created on or after<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)}/></label><label className="reports-field">Created on or before<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)}/></label></>}
