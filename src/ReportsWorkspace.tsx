@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { BarChart3, ChevronDown, Download, FileSpreadsheet, FileUp, Layers3, Plus, Printer, RefreshCw, Save, Search, Table2, Trash2, X } from "lucide-react";
@@ -270,17 +270,22 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const [busy, setBusy] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("mindtech.reports.autoRefresh") !== "false");
   const [draftHydratedFor, setDraftHydratedFor] = useState("");
+  const [remoteBuilderDraft, setRemoteBuilderDraft] = useState<{ draft: any; updated_at: string } | null>(null);
+  const [draftSaveStatus, setDraftSaveStatus] = useState("Draft auto-save ready");
   const reportDraftKey = `mindtech.reports.builderDraft.${user.id}`;
   const refreshRef = useRef(refreshTasks);
 
   const load = async () => {
     if (!supabase) return;
-    const [{ data: boardRows, error: boardError }, { data: departmentRows, error: departmentError }, { data: columnRows, error: columnError }, { data: savedRows, error: savedError }] = await Promise.all([
+    const [{ data: boardRows, error: boardError }, { data: departmentRows, error: departmentError }, { data: columnRows, error: columnError }, { data: savedRows, error: savedError }, { data: draftRow, error: draftError }] = await Promise.all([
       supabase.from("boards").select("id,name,department_id,created_at").order("created_at"),
       supabase.from("departments").select("id,name,is_active"),
       supabase.from("board_columns").select("id,board_id,name,column_type,options,is_hidden").order("position"),
-      supabase.from("saved_views").select("id,name,configuration,created_at").eq("owner_id", user.id).eq("view_type", "dashboard").order("created_at"),
+      supabase.from("saved_views").select("id,name,configuration,created_at,owner_id").eq("view_type", "dashboard").order("created_at"),
+      supabase.from("report_builder_drafts").select("draft,updated_at").eq("owner_id", user.id).maybeSingle(),
     ]);
+    setRemoteBuilderDraft(draftRow?.draft ? { draft: draftRow.draft, updated_at: String(draftRow.updated_at ?? "") } : null);
+    if (draftError) setDraftSaveStatus("Draft saved in this browser; online sync needs attention");
     if (boardError) {
       setSources([]); setSourceError(boardError.message); setSourcesLoading(false);
       notify(`Accessible boards could not be loaded: ${boardError.message}`); return;
@@ -335,11 +340,31 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const selectedVisualizations = useMemo(() => [...new Set([chartType, ...additionalVisuals].filter(Boolean))], [chartType, additionalVisuals]);
   const invalidCustomDateRange = dateRange === "custom" && ((!dateFrom && !dateTo) || Boolean(dateFrom && dateTo && dateFrom > dateTo));
 
+  const builderDraft = useMemo(() => {
+    const configuration: ReportConfig = {
+      dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards,
+      metricField: valueFields[0]?.field ?? "task_count", aggregation: valueFields[0]?.aggregation ?? "count",
+      seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings,
+      binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields,
+      pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations,
+      dataFields: selectedDataFields ?? undefined,
+    };
+    return { version: 1, reportName, dimension, configuration, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns };
+  }, [reportName, dimension, chartType, selectedBoards, valueFields, columnFields, seriesBy, dateRange, dateFrom, dateTo, fieldMappings, binWidth, filters, filterLogic, rowFields, filterFieldKeys, selectedVisualizations, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns]);
+
   useEffect(() => {
-    if (sourcesLoading && supabase) return;
-    setDraftHydratedFor("");
+    if ((sourcesLoading && supabase) || draftHydratedFor === reportDraftKey) return;
+    let localDraft: any = null;
     try {
-      const draft = JSON.parse(localStorage.getItem(reportDraftKey) || "null");
+      localDraft = JSON.parse(localStorage.getItem(reportDraftKey) || "null");
+    } catch {
+      localDraft = null;
+    }
+    const remoteDraft = remoteBuilderDraft?.draft;
+    const localSavedAt = Date.parse(String(localDraft?.updatedAt ?? "")) || 0;
+    const remoteSavedAt = Date.parse(String(remoteBuilderDraft?.updated_at ?? remoteDraft?.updatedAt ?? "")) || 0;
+    const draft = remoteSavedAt > localSavedAt ? remoteDraft : localDraft;
+    try {
       if (draft?.version === 1 && draft.configuration && typeof draft.configuration === "object") {
         const config = normaliseConfig(draft.configuration);
         const accessibleBoardIds = new Set(sources.map(source => source.id));
@@ -376,24 +401,29 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
       // Ignore malformed local drafts and leave the report builder at its defaults.
     }
     setDraftHydratedFor(reportDraftKey);
-  }, [reportDraftKey, sourcesLoading, sources, supabase]);
+  }, [reportDraftKey, sourcesLoading, sources, supabase, remoteBuilderDraft, draftHydratedFor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (sourcesLoading && supabase || draftHydratedFor !== reportDraftKey) return;
-    const configuration: ReportConfig = {
-      dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards,
-      metricField: valueFields[0]?.field ?? "task_count", aggregation: valueFields[0]?.aggregation ?? "count",
-      seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings,
-      binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields,
-      pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations,
-      dataFields: selectedDataFields ?? undefined,
-    };
     try {
-      localStorage.setItem(reportDraftKey, JSON.stringify({ version: 1, reportName, dimension, configuration, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns }));
+      localStorage.setItem(reportDraftKey, JSON.stringify({ ...builderDraft, updatedAt: new Date().toISOString() }));
     } catch {
       // A full or unavailable browser storage must not block report editing.
     }
-  }, [reportDraftKey, draftHydratedFor, sourcesLoading, supabase, reportName, dimension, chartType, selectedBoards, valueFields, columnFields, seriesBy, dateRange, dateFrom, dateTo, fieldMappings, binWidth, filters, filterLogic, rowFields, filterFieldKeys, selectedVisualizations, selectedDataFields, sourceDepartment, sourceBoard, editingId, mappingName, mappingRole, mappingColumns]);
+  }, [reportDraftKey, draftHydratedFor, sourcesLoading, supabase, builderDraft]);
+
+  useEffect(() => {
+    if (!supabase || (sourcesLoading && supabase) || draftHydratedFor !== reportDraftKey) return;
+    const timer = window.setTimeout(async () => {
+      const updatedAt = new Date().toISOString();
+      const draft = { ...builderDraft, updatedAt };
+      setDraftSaveStatus("Saving draft online…");
+      const { error } = await supabase.from("report_builder_drafts").upsert({ owner_id: user.id, draft, updated_at: updatedAt }, { onConflict: "owner_id" });
+      if (error) setDraftSaveStatus("Draft is saved in this browser; online sync failed");
+      else { setRemoteBuilderDraft({ draft, updated_at: updatedAt }); setDraftSaveStatus("Draft saved online"); }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [supabase, user.id, reportDraftKey, sourcesLoading, draftHydratedFor, builderDraft]);
 
   const columnValue = (task: any, column: ReportColumn) => {
     if (column.column_type !== "formula") return task.custom_fields?.[column.id];
@@ -686,7 +716,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     const primaryValue = valueFields[0];
     const configuration: ReportConfig = { dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards, metricField: primaryValue.field, aggregation: primaryValue.aggregation, seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings, binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields, pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations, dataFields: selectedDataFields ?? dataFieldChoices.map(field => field.value) };
     const result = editingId
-      ? await supabase.from("saved_views").update({ name: title, configuration }).eq("id", editingId).eq("owner_id", user.id)
+      ? await supabase.from("saved_views").update({ name: title, configuration }).eq("id", editingId)
       : await supabase.from("saved_views").insert({ owner_id: user.id, name: title, view_type: "dashboard", configuration });
     setBusy(false);
     if (result.error) return notify(`Report was not saved: ${result.error.message}`);
@@ -701,7 +731,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   };
   const removeReport = async (report: SavedReport) => {
     if (!supabase || !window.confirm(`Delete report “${report.name}”?`)) return;
-    const { error } = await supabase.from("saved_views").delete().eq("id", report.id).eq("owner_id", user.id);
+    const { error } = await supabase.from("saved_views").delete().eq("id", report.id);
     if (error) notify(`Report was not deleted: ${error.message}`); else { notify("Report deleted."); await load(); }
   };
   const exportReports = () => downloadFile("mindtech-reports.json", JSON.stringify(reports, null, 2), "application/json");
@@ -815,7 +845,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
 
     <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Selected source rows</span><b>{matchingTaskCount}</b><small>{selectedBoards.length ? "From boards you selected" : "No source data selected"}</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
 
-    <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, fields, and chart; this setup and its filters restore after a refresh in this browser.</p></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
+    <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, fields, and chart; this setup and its filters auto-save online.</p><small className="reports-draft-save-state" aria-live="polite"><Save size={12}/>{draftSaveStatus}</small></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
       <div className="reports-form-grid"><label className="reports-field reports-title-field">Report name<input maxLength={120} value={reportName} onChange={event => setReportName(event.target.value)} placeholder="e.g. Campaign delivery overview"/></label>
         <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         {dateRange === "custom" && <><label className="reports-field">Created on or after<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)}/></label><label className="reports-field">Created on or before<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)}/></label></>}
