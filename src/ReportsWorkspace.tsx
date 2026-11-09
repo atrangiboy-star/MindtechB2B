@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { BarChart3, Download, FileSpreadsheet, FileUp, Layers3, Plus, Printer, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { BarChart3, ChevronDown, Download, FileSpreadsheet, FileUp, Layers3, Plus, Printer, RefreshCw, Save, Search, Table2, Trash2, X } from "lucide-react";
 import { evaluateFormula } from "./AdvancedWorkspace";
 
 type BoardSource = { id: string; name: string; departmentId: string | null; departmentName: string };
@@ -31,6 +31,7 @@ type ReportConfig = {
   pivotValues?: PivotValueField[];
   filterFields?: string[];
   visualizations?: string[];
+  dataFields?: string[];
 };
 type SavedReport = { id: string; name: string; configuration: ReportConfig; created_at?: string };
 type ReportRow = { label: string; value: number; x?: number; series?: Record<string, number> };
@@ -45,6 +46,7 @@ const chartTypes = [
   ["pie", "Pie chart"], ["donut", "Donut chart"], ["funnel", "Funnel chart"], ["histogram", "Histogram"], ["scatter", "Scatter plot"], ["table", "Summary table"], ["kpi", "KPI cards"],
 ] as const;
 const baseDimensions = [
+  ["task", "Task"], ["due", "Due date"], ["progress", "Progress (%)"], ["description", "Description"], ["createdAt", "Created date"], ["updatedAt", "Updated date"],
   ["department", "Department"], ["board", "Board"], ["status", "Status"], ["priority", "Priority"],
   ["owner", "Owner"], ["createdMonth", "Created month"], ["dueMonth", "Due month"],
 ] as const;
@@ -69,6 +71,7 @@ const normaliseConfig = (raw: any): ReportConfig => ({
   pivotValues: Array.isArray(raw?.pivotValues) ? raw.pivotValues.filter((value: any) => value && typeof value.field === "string").map((value: any) => ({ field: value.field, aggregation: ["sum", "count", "average", "min", "max"].includes(value.aggregation) ? value.aggregation : "count" })) : undefined,
   filterFields: Array.isArray(raw?.filterFields) ? raw.filterFields.filter((field: unknown) => typeof field === "string") : undefined,
   visualizations: Array.isArray(raw?.visualizations) ? raw.visualizations.filter((type: unknown) => typeof type === "string") : [],
+  dataFields: Array.isArray(raw?.dataFields) ? raw.dataFields.filter((field: unknown) => typeof field === "string") : undefined,
 });
 const monthKey = (value: unknown) => {
   if (!value) return "No date";
@@ -86,6 +89,51 @@ function downloadFile(name: string, content: string, type: string) {
 function downloadBlobFile(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function makeChartSvg(type: string, title: string, metric: string, data: ReportRow[], total: number, totalValue: number) {
+  const width = 1200, height = 720, left = 90, right = 80, top = 120, bottom = 120;
+  const rows = data.slice(0, 18);
+  const esc = (value: unknown) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+  const colors = palette;
+  const titleBlock = `<rect width="${width}" height="${height}" rx="24" fill="#ffffff"/><text x="64" y="66" fill="#182643" font-family="Arial,sans-serif" font-size="30" font-weight="700">${esc(title)}</text><text x="64" y="98" fill="#7d8aa5" font-family="Arial,sans-serif" font-size="15">${esc(metric)} · ${Number(total).toLocaleString()} matching rows</text>`;
+  if (!rows.length && type !== "kpi") return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}<text x="${width / 2}" y="360" text-anchor="middle" fill="#7d8aa5" font-family="Arial,sans-serif" font-size="20">No matching data</text></svg>`;
+  if (type === "kpi") return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}<rect x="64" y="150" width="1072" height="475" rx="24" fill="#f4f7ff"/><text x="108" y="260" fill="#66758f" font-family="Arial,sans-serif" font-size="20">${esc(metric)}</text><text x="108" y="420" fill="#315be8" font-family="Arial,sans-serif" font-size="108" font-weight="700">${Number(totalValue.toFixed(2)).toLocaleString()}</text><text x="108" y="500" fill="#66758f" font-family="Arial,sans-serif" font-size="18">Across ${Number(total).toLocaleString()} source rows</text></svg>`;
+  if (type === "pie" || type === "donut") {
+    const sum = rows.reduce((value, row) => value + Math.max(0, row.value), 0) || rows.length;
+    let angle = -Math.PI / 2;
+    const cx = 390, cy = 390, radius = 230;
+    const slices = rows.map((row, index) => {
+      const slice = sum ? (Math.max(0, row.value) || (sum === rows.length ? 1 : 0)) / sum * Math.PI * 2 : 0;
+      const next = angle + slice;
+      const x1 = cx + radius * Math.cos(angle), y1 = cy + radius * Math.sin(angle), x2 = cx + radius * Math.cos(next), y2 = cy + radius * Math.sin(next);
+      const path = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${slice > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z`;
+      angle = next;
+      return `<path d="${path}" fill="${colors[index % colors.length]}"/>`;
+    }).join("");
+    const legend = rows.map((row, index) => `<g transform="translate(730 ${190 + index * 26})"><circle r="7" fill="${colors[index % colors.length]}"/><text x="18" y="5" fill="#3d4c67" font-family="Arial,sans-serif" font-size="15">${esc(row.label.slice(0, 32))}</text><text x="390" y="5" text-anchor="end" fill="#182643" font-family="Arial,sans-serif" font-size="15" font-weight="700">${Number(row.value.toFixed(2)).toLocaleString()}</text></g>`).join("");
+    const hole = type === "donut" ? `<circle cx="${cx}" cy="${cy}" r="130" fill="#ffffff"/><text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#182643" font-family="Arial,sans-serif" font-size="36" font-weight="700">${Number(totalValue.toFixed(2)).toLocaleString()}</text><text x="${cx}" y="${cy + 28}" text-anchor="middle" fill="#7d8aa5" font-family="Arial,sans-serif" font-size="13">${esc(metric)}</text>` : "";
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}<g>${slices}${hole}</g>${legend}</svg>`;
+  }
+  const max = Math.max(1, ...rows.map(row => row.value));
+  if (["column", "histogram", "stackedColumn"].includes(type)) {
+    const chartW = width - left - right, chartH = height - top - bottom, gap = 14, band = chartW / rows.length, barW = Math.max(8, band - gap);
+    const bars = rows.map((row, index) => { const h = Math.max(2, row.value / max * chartH); const x = left + index * band + (band - barW) / 2; const y = top + chartH - h; return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="${colors[index % colors.length]}"/><text x="${x + barW / 2}" y="${y - 10}" text-anchor="middle" fill="#53617b" font-family="Arial,sans-serif" font-size="13">${Number(row.value.toFixed(1)).toLocaleString()}</text><text x="${x + barW / 2}" y="${top + chartH + 28}" text-anchor="middle" fill="#65728c" font-family="Arial,sans-serif" font-size="12">${esc(row.label.slice(0, 14))}</text>`; }).join("");
+    const grid = [0, .25, .5, .75, 1].map(step => { const y = top + chartH * step; return `<line x1="${left}" x2="${width - right}" y1="${y}" y2="${y}" stroke="#e7ebf3"/><text x="${left - 14}" y="${y + 4}" text-anchor="end" fill="#8490a7" font-family="Arial,sans-serif" font-size="12">${Math.round(max * (1 - step))}</text>`; }).join("");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}${grid}${bars}</svg>`;
+  }
+  if (["line", "area", "scatter"].includes(type)) {
+    const chartW = width - left - right, chartH = height - top - bottom, min = Math.min(0, ...rows.map(row => row.value));
+    const points = rows.map((row, index) => ({ x: left + (rows.length < 2 ? chartW / 2 : index * chartW / (rows.length - 1)), y: top + chartH - ((row.value - min) / (max - min || 1)) * chartH, row }));
+    const path = points.map((point, index) => `${index ? "L" : "M"}${point.x},${point.y}`).join(" ");
+    const area = `${path} L${points[points.length - 1]?.x ?? left},${top + chartH} L${points[0]?.x ?? left},${top + chartH} Z`;
+    const marks = points.map((point, index) => `<circle cx="${point.x}" cy="${point.y}" r="6" fill="${colors[index % colors.length]}"/><text x="${point.x}" y="${top + chartH + 28}" text-anchor="middle" fill="#65728c" font-family="Arial,sans-serif" font-size="12">${esc(point.row.label.slice(0, 13))}</text>`).join("");
+    const grid = [0, .25, .5, .75, 1].map(step => `<line x1="${left}" x2="${width - right}" y1="${top + chartH * step}" y2="${top + chartH * step}" stroke="#e7ebf3"/>`).join("");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}${grid}${type === "area" ? `<path d="${area}" fill="#315be8" fill-opacity=".12"/>` : ""}<path d="${path}" fill="none" stroke="#315be8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>${marks}</svg>`;
+  }
+  const chartW = width - left - right, rowH = Math.min(26, (height - top - bottom) / rows.length);
+  const bars = rows.map((row, index) => { const y = top + index * rowH; const barWidth = Math.max(2, row.value / max * chartW * .75); return `<text x="${left - 14}" y="${y + rowH * .68}" text-anchor="end" fill="#53617b" font-family="Arial,sans-serif" font-size="13">${esc(row.label.slice(0, 28))}</text><rect x="${left}" y="${y + 2}" width="${barWidth}" height="${rowH - 5}" rx="5" fill="${colors[index % colors.length]}"/><text x="${left + barWidth + 10}" y="${y + rowH * .68}" fill="#53617b" font-family="Arial,sans-serif" font-size="13">${Number(row.value.toFixed(2)).toLocaleString()}</text>`; }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${titleBlock}${bars}</svg>`;
 }
 
 function makeStoredZip(files: Array<{ name: string; content: string }>) {
@@ -191,7 +239,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [reportName, setReportName] = useState("");
   const [dimension, setDimension] = useState("");
-  const [chartType, setChartType] = useState("");
+  const [chartType, setChartType] = useState("bar");
   const [, setMetricField] = useState("");
   const [, setAggregation] = useState<Aggregation | "">("");
   const [seriesBy, setSeriesBy] = useState("");
@@ -205,16 +253,17 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const [mappingColumns, setMappingColumns] = useState<Record<string, string>>({});
   const [filters, setFilters] = useState<ReportFilter[]>([]);
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
-  const [rowFields, setRowFields] = useState<string[]>([]);
+  const [rowFields, setRowFields] = useState<string[]>(["department"]);
   const [columnFields, setColumnFields] = useState<string[]>([]);
-  const [valueFields, setValueFields] = useState<PivotValueField[]>([]);
+  const [valueFields, setValueFields] = useState<PivotValueField[]>([{ field: "task_count", aggregation: "count" }]);
   const [filterFieldKeys, setFilterFieldKeys] = useState<string[]>([]);
   const [additionalVisuals, setAdditionalVisuals] = useState<string[]>([]);
   const [fieldToAdd, setFieldToAdd] = useState("");
   const [fieldAreaToAdd, setFieldAreaToAdd] = useState<PivotFieldArea>("rows");
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
-  const [sourceDepartment, setSourceDepartment] = useState("");
-  const [sourceBoard, setSourceBoard] = useState("");
+  const [sourceDepartment, setSourceDepartment] = useState("__all_departments__");
+  const [sourceBoard, setSourceBoard] = useState("__all_tables__");
+  const [selectedDataFields, setSelectedDataFields] = useState<string[] | null>(null);
   const [sourceSearch, setSourceSearch] = useState("");
   const [fieldSearch, setFieldSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -273,10 +322,13 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const selectedDepartmentCount = new Set(sources.filter(source => selectedBoards.includes(source.id)).map(source => source.departmentName)).size;
   const boardNames = useMemo(() => new Map(sources.map(source => [source.id, source.name])), [sources]);
   const availableDepartments = [...new Set(sources.map(source => source.departmentName))].sort((a, b) => a.localeCompare(b));
-  const pickerDepartment = availableDepartments.includes(sourceDepartment) ? sourceDepartment : availableDepartments[0] ?? "";
-  const tablesForDepartment = sources.filter(source => source.departmentName === pickerDepartment);
-  const pickerBoardId = tablesForDepartment.some(source => source.id === sourceBoard) ? sourceBoard : tablesForDepartment[0]?.id ?? "";
+  const pickerDepartment = sourceDepartment === "__all_departments__" || availableDepartments.includes(sourceDepartment) ? sourceDepartment : "__all_departments__";
+  const tablesForDepartment = pickerDepartment === "__all_departments__" ? sources : sources.filter(source => source.departmentName === pickerDepartment);
+  const pickerBoardId = sourceBoard === "__all_tables__" || tablesForDepartment.some(source => source.id === sourceBoard) ? sourceBoard : "__all_tables__";
   const allFieldChoices = [...new Map([...dimensions, ...metricFields].map(field => [field.value, field])).values()];
+  const dataFieldChoices = allFieldChoices.filter(field => field.value !== "task_count");
+  const activeDataFields = selectedDataFields ?? dataFieldChoices.map(field => field.value);
+  const selectedDataFieldChoices = dataFieldChoices.filter(field => activeDataFields.includes(field.value));
   const visibleFieldChoices = allFieldChoices.filter(field => !fieldSearch.trim() || `${field.label} ${field.value}`.toLocaleLowerCase().includes(fieldSearch.trim().toLocaleLowerCase()));
   const selectedVisualizations = [...new Set([chartType, ...additionalVisuals].filter(Boolean))];
   const invalidCustomDateRange = dateRange === "custom" && ((!dateFrom && !dateTo) || Boolean(dateFrom && dateTo && dateFrom > dateTo));
@@ -355,6 +407,12 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     });
   };
   const rawFieldValue = (task: any, key: string, configuration: ReportConfig): unknown => {
+    if (key === "task") return task.title;
+    if (key === "due") return task.due;
+    if (key === "progress") return task.progress;
+    if (key === "description") return task.description;
+    if (key === "createdAt") return task.created_at;
+    if (key === "updatedAt") return task.updated_at;
     if (key === "department") return task.department;
     if (key === "board") return boardNames.get(task.board_id) ?? "No board";
     if (key === "status") return task.status;
@@ -499,7 +557,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     return { rows, total: matchingRows, totalValue };
   };
 
-  const resetForm = () => { setReportName(""); setDimension(""); setChartType(""); setMetricField(""); setAggregation(""); setSeriesBy(""); setDateRange("all"); setDateFrom(""); setDateTo(""); setBinWidth(""); setFieldMappings([]); setMappingName(""); setMappingColumns({}); setFilters([]); setFilterLogic("all"); setRowFields([]); setColumnFields([]); setValueFields([]); setFilterFieldKeys([]); setAdditionalVisuals([]); setSelectedBoards([]); setEditingId(null); };
+  const resetForm = () => { setReportName(""); setDimension("department"); setChartType("bar"); setMetricField("task_count"); setAggregation("count"); setSeriesBy("status"); setDateRange("all"); setDateFrom(""); setDateTo(""); setBinWidth(""); setFieldMappings([]); setMappingName(""); setMappingColumns({}); setFilters([]); setFilterLogic("all"); setRowFields(["department"]); setColumnFields([]); setValueFields([{ field: "task_count", aggregation: "count" }]); setFilterFieldKeys([]); setAdditionalVisuals([]); setSelectedBoards([]); setSelectedDataFields(null); setSourceDepartment("__all_departments__"); setSourceBoard("__all_tables__"); setEditingId(null); };
   const toggleBoard = (id: string) => {
     if (selectedBoards.includes(id)) removeSelectedTable(id);
     else setSelectedBoards(current => [...current, id]);
@@ -539,9 +597,15 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     if (area === "filters") { setFilterFieldKeys(current => current.filter(item => item !== field)); setFilters(current => current.filter(item => item.field !== field)); }
   };
   const updateValueAggregation = (field: string, next: Aggregation) => setValueFields(current => current.map(value => value.field === field ? { ...value, aggregation: next } : value));
+  const setQuickCategory = (field: string) => { setDimension(field); setRowFields(field ? [field] : []); };
+  const setQuickMeasure = (field: string) => {
+    const aggregation: Aggregation = field === "task_count" || !isNumericField(field, { boardIds: selectedBoards, fieldMappings }) ? "count" : "sum";
+    setMetricField(field); setAggregation(aggregation); setValueFields(field ? [{ field, aggregation }] : []);
+  };
   const addSelectedTable = () => {
-    if (!pickerBoardId) return;
-    setSelectedBoards(current => current.includes(pickerBoardId) ? current : [...current, pickerBoardId]);
+    const targets = pickerBoardId === "__all_tables__" ? tablesForDepartment.map(table => table.id) : [pickerBoardId].filter(id => id !== "__all_tables__");
+    if (!targets.length) return;
+    setSelectedBoards(current => [...new Set([...current, ...targets])]);
   };
   const removeSelectedTable = (boardId: string) => {
     setSelectedBoards(current => current.filter(id => id !== boardId));
@@ -555,10 +619,10 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   const saveReport = async () => {
     if (!supabase) return notify("Connect to the workspace before saving reports.");
     const title = reportName.trim(); if (!title) return notify("Enter a report name before saving.");
-    if (!selectedBoards.length || !chartType || !selectedVisualizations.length || !valueFields.length || !dateRange || invalidCustomDateRange || (selectedVisualizations.some(type => type === "stacked" || type === "stackedColumn") && !columnFields.length) || (selectedVisualizations.includes("histogram") && (!(Number(binWidth) > 0) || !rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })))) || (selectedVisualizations.includes("scatter") && (!rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })) || !valueFields.some(value => isNumericField(value.field, { boardIds: selectedBoards, fieldMappings })))) ) return notify("Connect tables, add fields to the Pivot areas, and complete the selected visualization settings.");
+    if (!selectedBoards.length || !chartType || !selectedVisualizations.length || !valueFields.length || !dateRange || invalidCustomDateRange || (selectedVisualizations.some(type => type === "stacked" || type === "stackedColumn") && !columnFields.length) || (selectedVisualizations.includes("histogram") && (!(Number(binWidth) > 0) || !rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })))) || (selectedVisualizations.includes("scatter") && (!rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })) || !valueFields.some(value => isNumericField(value.field, { boardIds: selectedBoards, fieldMappings })))) ) return notify("Select department tables, choose a value field, and complete any options needed by the selected chart type.");
     setBusy(true);
     const primaryValue = valueFields[0];
-    const configuration: ReportConfig = { dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards, metricField: primaryValue.field, aggregation: primaryValue.aggregation, seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings, binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields, pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations };
+    const configuration: ReportConfig = { dimension: rowFields[0] ?? (dimension || "department"), chartType, boardIds: selectedBoards, metricField: primaryValue.field, aggregation: primaryValue.aggregation, seriesBy: columnFields[0] ?? (seriesBy || "status"), dateRange, dateFrom, dateTo, fieldMappings, binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields, pivotValues: valueFields, filterFields: filterFieldKeys, visualizations: selectedVisualizations, dataFields: selectedDataFields ?? dataFieldChoices.map(field => field.value) };
     const result = editingId
       ? await supabase.from("saved_views").update({ name: title, configuration }).eq("id", editingId).eq("owner_id", user.id)
       : await supabase.from("saved_views").insert({ owner_id: user.id, name: title, view_type: "dashboard", configuration });
@@ -570,7 +634,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
     const config = normaliseConfig(report.configuration);
     const visuals = config.visualizations?.length ? config.visualizations : [config.chartType];
     const pivotValues = config.pivotValues?.length ? config.pivotValues : [{ field: config.metricField ?? "task_count", aggregation: config.aggregation ?? "count" }];
-    setEditingId(report.id); setReportName(report.name); setDimension(config.dimension); setChartType(visuals[0] ?? config.chartType); setAdditionalVisuals(visuals.slice(1)); setMetricField(config.metricField ?? "task_count"); setAggregation(config.aggregation ?? "count"); setSeriesBy(config.seriesBy ?? "status"); setDateRange(config.dateRange ?? "all"); setDateFrom(config.dateFrom ?? ""); setDateTo(config.dateTo ?? ""); setBinWidth(config.binWidth ? String(config.binWidth) : ""); setFieldMappings(config.fieldMappings ?? []); setMappingColumns({}); setFilters(config.filters ?? []); setFilterLogic(config.filterLogic ?? "all"); setRowFields(config.pivotRows ?? [config.dimension]); setColumnFields(config.pivotColumns ?? []); setValueFields(pivotValues); setFilterFieldKeys(config.filterFields ?? (config.filters ?? []).map(filter => filter.field)); setSelectedBoards(config.boardIds ?? []);
+    setEditingId(report.id); setReportName(report.name); setDimension(config.dimension); setChartType(visuals[0] ?? config.chartType); setAdditionalVisuals(visuals.slice(1)); setMetricField(config.metricField ?? "task_count"); setAggregation(config.aggregation ?? "count"); setSeriesBy(config.seriesBy ?? "status"); setDateRange(config.dateRange ?? "all"); setDateFrom(config.dateFrom ?? ""); setDateTo(config.dateTo ?? ""); setBinWidth(config.binWidth ? String(config.binWidth) : ""); setFieldMappings(config.fieldMappings ?? []); setMappingColumns({}); setFilters(config.filters ?? []); setFilterLogic(config.filterLogic ?? "all"); setRowFields(config.pivotRows ?? [config.dimension]); setColumnFields(config.pivotColumns ?? []); setValueFields(pivotValues); setFilterFieldKeys(config.filterFields ?? (config.filters ?? []).map(filter => filter.field)); setSelectedBoards(config.boardIds ?? []); setSelectedDataFields(config.dataFields ?? null);
     document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const removeReport = async (report: SavedReport) => {
@@ -635,26 +699,73 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
   };
 
   const matchingTaskCount = selectedBoards.length ? tasks.filter(task => selectedBoards.includes(task.board_id ?? "")).length : 0;
-  const previewConfig: ReportConfig = { dimension: rowFields[0] ?? "department", chartType: chartType || "pivot", boardIds: selectedBoards, metricField: valueFields[0]?.field ?? "task_count", aggregation: valueFields[0]?.aggregation ?? "count", seriesBy: columnFields[0] ?? "status", dateRange: dateRange || "all", dateFrom, dateTo, fieldMappings, binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields, pivotValues: valueFields.length ? valueFields : [{ field: "task_count", aggregation: "count" }], filterFields: filterFieldKeys, visualizations: selectedVisualizations };
+  const previewConfig: ReportConfig = { dimension: rowFields[0] ?? "department", chartType: chartType || "bar", boardIds: selectedBoards, metricField: valueFields[0]?.field ?? "task_count", aggregation: valueFields[0]?.aggregation ?? "count", seriesBy: columnFields[0] ?? "status", dateRange: dateRange || "all", dateFrom, dateTo, fieldMappings, binWidth: Number(binWidth) || undefined, filters, filterLogic, pivotRows: rowFields, pivotColumns: columnFields, pivotValues: valueFields.length ? valueFields : [{ field: "task_count", aggregation: "count" }], filterFields: filterFieldKeys, visualizations: selectedVisualizations, dataFields: activeDataFields };
   const previewPivot = selectedBoards.length ? makePivot(previewConfig) : null;
+  const fieldsForConfiguration = (configuration: ReportConfig) => {
+    const boardIds = configuration.boardIds ?? [];
+    const choices: Array<{ value: string; label: string }> = [
+      ...baseDimensions.map(([value, label]) => ({ value, label })),
+      ...columns.filter(column => !column.is_hidden && boardIds.includes(column.board_id)).map(column => ({ value: `col:${column.id}`, label: `${sources.find(source => source.id === column.board_id)?.name ?? "Table"} · ${column.name}` })),
+      ...(configuration.fieldMappings ?? []).map(mapping => ({ value: `map:${mapping.id}`, label: `${mapping.name} · mapped` })),
+    ];
+    const unique = [...new Map(choices.map(choice => [choice.value, choice])).values()];
+    const requested = configuration.dataFields ?? unique.map(choice => choice.value);
+    return unique.filter(choice => requested.includes(choice.value) && choice.value !== "task_count");
+  };
+  const fieldAvailableOnBoard = (field: string, boardId: string, configuration: ReportConfig) => {
+    if (field.startsWith("col:")) return columns.some(column => column.id === field.slice(4) && column.board_id === boardId);
+    if (field.startsWith("map:")) return Boolean(configuration.fieldMappings?.find(mapping => `map:${mapping.id}` === field)?.columnByBoard[boardId]);
+    if (field.startsWith("field:")) return columns.some(column => column.board_id === boardId && safeName(column.name) === field.slice(6));
+    return true;
+  };
+  const cellText = (value: unknown) => value === null || value === undefined || value === "" ? "—" : Array.isArray(value) ? value.map(item => item && typeof item === "object" && "name" in item ? String((item as any).name) : String(item)).join(", ") : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const sourceDataTables = (configuration: ReportConfig) => {
+    const fields = fieldsForConfiguration(configuration);
+    const filteredTasks = reportTasks(configuration);
+    return <div className="reports-source-data-list">{(configuration.boardIds ?? []).map(boardId => {
+      const board = sources.find(source => source.id === boardId);
+      const boardFields = fields.filter(field => fieldAvailableOnBoard(field.value, boardId, configuration));
+      const boardTasks = filteredTasks.filter(task => task.board_id === boardId);
+      return <section className="reports-source-data-table" key={boardId}><header><div><b>{board?.name ?? "Department table"}</b><small>{board?.departmentName ?? "Department"} · {boardTasks.length.toLocaleString()} rows</small></div><span>{boardFields.length} selected columns</span></header>{boardFields.length ? <div className="reports-source-data-scroll"><table><thead><tr>{boardFields.map(field => <th key={field.value}>{field.label.split(" · ").at(-1)}</th>)}</tr></thead><tbody>{boardTasks.slice(0, 100).map(task => <tr key={task.id}>{boardFields.map(field => <td key={field.value} title={cellText(rawFieldValue(task, field.value, configuration))}>{cellText(rawFieldValue(task, field.value, configuration))}</td>)}</tr>)}{!boardTasks.length && <tr><td colSpan={boardFields.length}><div className="reports-source-empty-cell">No matching rows in this table.</div></td></tr>}</tbody></table></div> : <div className="reports-source-empty-cell">Choose database columns above to preview this table.</div>}{boardTasks.length > 100 && <small className="reports-table-cap">Showing the first 100 rows here. Download CSV for every matching row.</small>}</section>;
+    })}</div>;
+  };
+  const downloadSourceCsv = (configuration: ReportConfig, name: string) => {
+    const fields = fieldsForConfiguration(configuration); const boards = new Map(sources.map(source => [source.id, source]));
+    const selectedRows = reportTasks(configuration);
+    const headings = ["Department", "Table", ...fields.map(field => field.label)];
+    const escape = (value: unknown) => `"${cellText(value).replace(/"/g, '""')}"`;
+    const matrix = selectedRows.map(task => { const board = boards.get(String(task.board_id)); return [escape(board?.departmentName ?? task.department), escape(board?.name ?? ""), ...fields.map(field => escape(fieldAvailableOnBoard(field.value, String(task.board_id), configuration) ? rawFieldValue(task, field.value, configuration) : ""))]; });
+    downloadFile(name, [headings.map(escape).join(","), ...matrix.map(row => row.join(","))].join("\r\n"), "text/csv;charset=utf-8");
+  };
+  const downloadChartPng = async (configuration: ReportConfig, type: string, name: string) => {
+    const summary = makeRows(configuration, type); const value = valueSpecifications(configuration)[0];
+    const metric = value ? `${fieldLabel(value.field, configuration)} · ${value.aggregation.toUpperCase()}` : "Record count";
+    const svg = makeChartSvg(type, name, metric, summary.rows, summary.total, summary.totalValue);
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    const image = new Image(); image.onload = () => { const canvas = document.createElement("canvas"); canvas.width = 1200; canvas.height = 720; const context = canvas.getContext("2d"); context?.drawImage(image, 0, 0); canvas.toBlob(blob => { URL.revokeObjectURL(url); if (blob) downloadBlobFile(`${safeExportBase(name)}-${type}.png`, blob); else notify("Could not create a PNG. Try downloading the SVG chart instead."); }, "image/png"); };
+    image.onerror = () => { URL.revokeObjectURL(url); notify("Chart image could not be prepared for download."); };
+    image.src = url;
+  };
   const renderFieldArea = (title: string, area: PivotFieldArea, fields: string[]) => <section className={`reports-pivot-area reports-pivot-area-${area}`} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); moveFieldToArea(event.dataTransfer.getData("text/plain"), area); }}><header><b>{title}</b><span>{fields.length}</span></header>{fields.length ? <div className="reports-pivot-pills">{fields.map(field => { const numeric = field !== "task_count" && isNumericField(field, { boardIds: selectedBoards, fieldMappings }); return <div className="reports-pivot-pill" key={field} draggable onDragStart={event => event.dataTransfer.setData("text/plain", field)}><span>{fieldLabel(field)}</span>{area === "values" && <select aria-label={`Aggregation for ${fieldLabel(field)}`} value={valueFields.find(value => value.field === field)?.aggregation ?? "count"} onClick={event => event.stopPropagation()} onChange={event => updateValueAggregation(field, event.target.value as Aggregation)}>{numeric ? <><option value="sum">SUM</option><option value="count">COUNT</option><option value="average">AVERAGE</option><option value="min">MIN</option><option value="max">MAX</option></> : <option value="count">COUNT</option>}</select>}<button type="button" aria-label={`Remove ${fieldLabel(field)} from ${title}`} onClick={() => removeFieldFromArea(field, area)}><X size={12}/></button></div>; })}</div> : <div className="reports-pivot-drop-hint">Drop fields here or use the add-field control.</div>}</section>;
 
   return <div className="reports-workspace">
-    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>BI Dashboard</h2><p>Create visual reports from the department boards you choose. Board fields and chart logic are never connected automatically.</p></div><div className="reports-hero-actions"><button className="primary-button" onClick={() => document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Plus size={15}/> Create visual</button><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
+    <section className="reports-hero"><div className="reports-hero-copy"><div className="reports-eyebrow"><Layers3 size={14}/> BUSINESS INTELLIGENCE</div><h2>BI Dashboard</h2><p>Select departments, tables, and their columns. Charts preview from live workspace data and can be downloaded as PNG.</p></div><div className="reports-hero-actions"><button className="primary-button" onClick={() => document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Plus size={15}/> Create visual</button><button className="secondary-button" onClick={() => void Promise.all([refreshTasks(), load()])}><RefreshCw size={15}/> Refresh data</button><button className="secondary-button" onClick={exportReports}><Download size={15}/> Export reports</button><label className="secondary-button upload-button"><FileUp size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importReports}/></label></div></section>
 
     <section className="reports-kpis" aria-label="Report data summary"><article><span>Accessible boards</span><b>{sources.length}</b><small>Across {availableDepartments.length} departments</small></article><article><span>Selected source rows</span><b>{matchingTaskCount}</b><small>{selectedBoards.length ? "From boards you selected" : "No source data selected"}</small></article><article><span>Saved reports</span><b>{reports.length}</b><small>Stored in your workspace account</small></article><article className="reports-refresh-card"><label><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)}/> Auto-refresh</label><small>Updates every minute; live task changes update automatically.</small></article></section>
 
     <section className="panel reports-builder" id="reports-builder"><div className="reports-section-heading"><div><div className="reports-eyebrow">REPORT DESIGNER</div><h3>{editingId ? "Edit report" : "Create a report"}</h3><p>Choose the boards, measures, and visual that should appear together.</p></div><span className="reports-source-pill"><Layers3 size={14}/>{selectedDepartmentCount} departments · {selectedSourceCount} boards</span></div>
       <div className="reports-form-grid"><label className="reports-field reports-title-field">Report name<input maxLength={120} value={reportName} onChange={event => setReportName(event.target.value)} placeholder="e.g. Campaign delivery overview"/></label>
-        <label className="reports-field">Primary visualization<select value={chartType} onChange={event => { const next = event.target.value; if (chartType && chartType !== next) setAdditionalVisuals(current => [...new Set([...current, chartType])]); setAdditionalVisuals(current => current.filter(type => type !== next)); setChartType(next); }}><option value="">Choose a visualization</option>{chartTypes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <label className="reports-field">Primary visualization<select value={chartType} onChange={event => { const next = event.target.value; setAdditionalVisuals(current => current.filter(type => type !== next)); setChartType(next); }}><option value="">Choose a visualization</option>{chartTypes.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <label className="reports-field">Date window<select value={dateRange} onChange={event => setDateRange(event.target.value)}>{dateRanges.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         {dateRange === "custom" && <><label className="reports-field">Created on or after<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)}/></label><label className="reports-field">Created on or before<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)}/></label></>}
         {selectedVisualizations.includes("histogram") && <label className="reports-field">Histogram bin width<input type="number" min="0.000001" step="any" value={binWidth} onChange={event => setBinWidth(event.target.value)} placeholder="e.g. 10"/></label>}
       </div>
+      <section className="reports-quick-setup"><div className="reports-mapper-heading"><div><b>Chart setup</b><small>Select database columns for the chart. The preview updates as you change these fields.</small></div><span>{rowFields.length} category · {valueFields.length} value</span></div><div className="reports-quick-grid"><label className="reports-field">Category / X axis<select value={rowFields[0] ?? ""} onChange={event => setQuickCategory(event.target.value)}><option value="">No category · total only</option>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label><label className="reports-field">Value / Y axis<select value={valueFields[0]?.field ?? ""} onChange={event => setQuickMeasure(event.target.value)}><option value="">Choose a value</option><option value="task_count">Count of records</option>{allFieldChoices.filter(field => field.value !== "task_count").map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label><label className="reports-field">Aggregation<select value={valueFields[0]?.aggregation ?? "count"} onChange={event => valueFields[0] && updateValueAggregation(valueFields[0].field, event.target.value as Aggregation)}>{isNumericField(valueFields[0]?.field ?? "task_count", { boardIds: selectedBoards, fieldMappings }) ? <><option value="sum">Sum</option><option value="count">Count</option><option value="average">Average</option><option value="min">Minimum</option><option value="max">Maximum</option></> : <option value="count">Count</option>}</select></label>{selectedVisualizations.some(type => type === "stacked" || type === "stackedColumn") && <label className="reports-field">Series / Legend<select value={columnFields[0] ?? ""} onChange={event => setColumnFields(event.target.value ? [event.target.value] : [])}><option value="">Choose a series field</option>{dimensions.map(field => <option value={field.value} key={field.value}>{field.label}</option>)}</select></label>}</div></section>
       <div className="reports-extra-visuals"><b>Also visualize the same data as</b><div>{chartTypes.filter(([type]) => type !== chartType).map(([type, label]) => <label key={type}><input type="checkbox" checked={additionalVisuals.includes(type)} onChange={() => setAdditionalVisuals(current => current.includes(type) ? current.filter(value => value !== type) : [...current, type])}/>{label}</label>)}</div></div>
-      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Choose department tables</b><small>Department names, table names, and column headers are loaded from the database. Only tables granted to your account appear.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => { if (allBoardsSelected) { setSelectedBoards([]); setRowFields([]); setColumnFields([]); setValueFields([]); setFilterFieldKeys([]); setFilters([]); } else setSelectedBoards(sources.map(source => source.id)); }}/> Connect all accessible tables</label></div>
-        {!sourcesLoading && !sourceError && sources.length > 0 && <div className="reports-table-picker"><label className="reports-field">Department<select value={pickerDepartment} onChange={event => { setSourceDepartment(event.target.value); setSourceBoard(""); }}>{availableDepartments.map(department => <option value={department} key={department}>{department}</option>)}</select></label><label className="reports-field">Table<select value={pickerBoardId} onChange={event => setSourceBoard(event.target.value)}>{tablesForDepartment.map(table => <option value={table.id} key={table.id}>{table.name}</option>)}</select></label><button className="primary-button" type="button" disabled={!pickerBoardId || selectedBoards.includes(pickerBoardId)} onClick={addSelectedTable}><Plus size={15}/>{selectedBoards.includes(pickerBoardId) ? "Table connected" : "Connect table"}</button></div>}
+      <div className="reports-source-picker"><div className="reports-source-head"><div><b>Select department tables</b><small>Choose a department and table, then select their database columns. Options come from the data your account can access.</small></div><label className="reports-all-source"><input type="checkbox" checked={allBoardsSelected} onChange={() => setSelectedBoards(allBoardsSelected ? [] : sources.map(source => source.id))}/> All departments · all tables</label></div>
+        {!sourcesLoading && !sourceError && sources.length > 0 && <div className="reports-table-picker"><label className="reports-field">Department<select value={pickerDepartment} onChange={event => { setSourceDepartment(event.target.value); setSourceBoard("__all_tables__"); }}><option value="__all_departments__">All departments</option>{availableDepartments.map(department => <option value={department} key={department}>{department}</option>)}</select></label><label className="reports-field">Table name<select value={pickerBoardId} onChange={event => setSourceBoard(event.target.value)}><option value="__all_tables__">All tables</option>{tablesForDepartment.map(table => <option value={table.id} key={table.id}>{table.name}</option>)}</select></label><button className="primary-button" type="button" disabled={!tablesForDepartment.length || (pickerBoardId === "__all_tables__" ? tablesForDepartment.every(table => selectedBoards.includes(table.id)) : selectedBoards.includes(pickerBoardId))} onClick={addSelectedTable}><Plus size={15}/>{pickerBoardId === "__all_tables__" ? tablesForDepartment.every(table => selectedBoards.includes(table.id)) ? "Tables connected" : "Connect tables" : selectedBoards.includes(pickerBoardId) ? "Table connected" : "Connect table"}</button></div>}
         <div className="reports-connected-tables"><b>Connected tables · {selectedBoards.length}</b>{selectedBoards.length ? selectedBoards.map(boardId => { const board = sources.find(source => source.id === boardId); return <span key={boardId}><small>{board?.departmentName} / </small>{board?.name}<button type="button" aria-label={`Remove ${board?.name}`} onClick={() => removeSelectedTable(boardId)}><X size={12}/></button></span>; }) : <small>Select a department and table above or use the table list below.</small>}</div>
+        {selectedBoards.length > 0 && <details className="reports-column-dropdown" open><summary><span><Table2 size={15}/> Column names</span><b>{selectedDataFieldChoices.length} selected</b><ChevronDown size={15}/></summary><div className="reports-column-menu"><div className="reports-column-menu-actions"><button type="button" className="text-button" onClick={() => setSelectedDataFields(dataFieldChoices.map(field => field.value))}>Select all columns</button><button type="button" className="text-button" onClick={() => setSelectedDataFields([])}>Clear selection</button></div><div className="reports-column-menu-list">{dataFieldChoices.map(field => <label key={field.value}><input type="checkbox" checked={activeDataFields.includes(field.value)} onChange={() => { const current = new Set(activeDataFields); current.has(field.value) ? current.delete(field.value) : current.add(field.value); setSelectedDataFields([...current]); }}/><span>{field.label}</span><small>{field.value.startsWith("col:") ? columns.find(column => `col:${column.id}` === field.value)?.column_type ?? "column" : "workspace field"}</small></label>)}</div></div></details>}
         <label className="reports-source-search"><Search size={15}/><input type="search" value={sourceSearch} onChange={event => setSourceSearch(event.target.value)} placeholder="Search departments and boards"/></label>
         {sourcesLoading ? <div className="reports-no-sources"><b>Loading accessible boards…</b></div> : sourceError ? <div className="reports-no-sources"><b>Boards could not be loaded.</b><span>{sourceError}</span><button className="secondary-button" onClick={() => void load()}>Retry</button></div> : groupedSources.length ? <div className="reports-source-groups">{groupedSources.map(([department, boards]) => <section key={department}><div className="reports-department-source"><b>{department}</b><small>{boards.length} {boards.length === 1 ? "board" : "boards"}</small></div>{boards.map(board => <label className="reports-board-source" key={board.id}><input type="checkbox" checked={selectedBoards.includes(board.id)} onChange={() => toggleBoard(board.id)}/><span><b>{board.name}</b><small>{board.departmentName}</small></span></label>)}</section>)}</div> : <div className="reports-no-sources"><b>{sourceSearch.trim() ? "No boards match that search." : "No boards are available to this account."}</b><span>{sourceSearch.trim() ? "Try another department or board name." : "Board access is enforced by Supabase. Ask the Super Admin to grant access to the departments you need."}</span></div>}
         <section className="reports-field-mapper"><div className="reports-mapper-heading"><div><b>Map columns across boards</b><small>Give equivalent columns one shared name so you can chart data even when department headers differ.</small></div><span>{fieldMappings.length} mapped fields</span></div>
@@ -670,7 +781,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
       <div className="reports-builder-footer"><span>Data is read using your existing department and table permissions; reports never copy source rows.</span><div>{editingId && <button className="secondary-button" onClick={resetForm}><X size={15}/> Cancel edit</button>}<button className="primary-button" disabled={busy || !reportName.trim() || !selectedBoards.length || !chartType || !valueFields.length || !dateRange || invalidCustomDateRange || (selectedVisualizations.some(type => type === "stacked" || type === "stackedColumn") && !columnFields.length) || (selectedVisualizations.includes("histogram") && (!(Number(binWidth) > 0) || !rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })))) || (selectedVisualizations.includes("scatter") && (!rowFields.some(field => isNumericField(field, { boardIds: selectedBoards, fieldMappings })) || !valueFields.some(value => isNumericField(value.field, { boardIds: selectedBoards, fieldMappings }))))} onClick={() => void saveReport()}><Save size={15}/>{busy ? "Saving…" : editingId ? "Save changes" : "Save report"}</button></div></div>
     </section>
 
-    <section className="panel reports-live-preview"><div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE PREVIEW</div><h3>{reportName || "Untitled report"}</h3><p>{selectedDepartmentCount} departments · {selectedSourceCount} tables · {previewPivot?.matchingRows ?? 0} matching rows</p></div><span>Updates as fields change</span></div>{!selectedBoards.length ? <div className="reports-first-run"><p>Connect a department table to start your interactive report preview.</p></div> : !selectedVisualizations.length ? <div className="reports-first-run"><p>Choose a visualization and place at least one field in Values to preview your report.</p></div> : <div className="reports-preview-visuals">{selectedVisualizations.map(type => { const { rows, total, totalValue } = makeRows(previewConfig, type); const metric = valueFields[0] ? `${fieldLabel(valueFields[0].field)} · ${valueFields[0].aggregation.toUpperCase()}` : "Records"; return <article className="report-preview-visual" key={type}><header><span className="report-type-label">{chartTypes.find(([visual]) => visual === type)?.[1] ?? type}</span></header><ReportVisual type={type} rows={rows} totalLabel={total} totalValue={totalValue} metricLabel={metric} pivot={type === "pivot" ? previewPivot ?? undefined : undefined} fieldName={field => fieldLabel(field, previewConfig)}/></article>; })}</div>}</section>
+    <section className="panel reports-live-preview"><div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE PREVIEW</div><h3>{reportName || "Untitled report"}</h3><p>{selectedDepartmentCount} departments · {selectedSourceCount} tables · {previewPivot?.matchingRows ?? 0} matching rows</p></div><div className="reports-preview-actions"><button className="secondary-button" disabled={!selectedBoards.length} onClick={() => downloadSourceCsv(previewConfig, `${safeExportBase(reportName || "selected-table-data")}-data.csv`)}><Download size={14}/> Download table CSV</button><button className="primary-button" disabled={!selectedBoards.length} onClick={() => void downloadChartPng(previewConfig, chartType || "bar", reportName || "BI-chart")}><Download size={14}/> Download chart PNG</button></div></div>{!selectedBoards.length ? <div className="reports-first-run"><p>Connect a department table to start your interactive report preview.</p></div> : !selectedVisualizations.length ? <div className="reports-first-run"><p>Choose a visualization and place at least one field in Values to preview your report.</p></div> : <div className="reports-preview-visuals">{selectedVisualizations.map(type => { const { rows, total, totalValue } = makeRows(previewConfig, type); const metric = valueFields[0] ? `${fieldLabel(valueFields[0].field)} · ${valueFields[0].aggregation.toUpperCase()}` : "Records"; return <article className="report-preview-visual" key={type}><header><span className="report-type-label">{chartTypes.find(([visual]) => visual === type)?.[1] ?? type}</span></header><ReportVisual type={type} rows={rows} totalLabel={total} totalValue={totalValue} metricLabel={metric} pivot={type === "pivot" ? previewPivot ?? undefined : undefined} fieldName={field => fieldLabel(field, previewConfig)}/></article>; })}</div>}{selectedBoards.length > 0 && sourceDataTables(previewConfig)}</section>
 
     <div className="reports-canvas-heading"><div><div className="reports-eyebrow">LIVE CANVAS</div><h3>Dashboard canvas</h3><p>Saved visuals update from the board sources chosen for each report.</p></div><span>{reports.length} {reports.length === 1 ? "report" : "reports"}</span></div>
     {reports.length ? <div className="reports-grid">{reports.map(report => {
@@ -680,7 +791,7 @@ export default function ReportsWorkspace({ supabase, user, tasks, refreshTasks, 
       const metric = `${fieldLabel(metricFieldForCard, config)} · ${(config.pivotValues?.[0]?.aggregation ?? config.aggregation ?? "count").toUpperCase()}`;
       const sourceCount = config.boardIds?.length ?? 0;
       const departmentCount = new Set(sources.filter(source => config.boardIds?.includes(source.id)).map(source => source.departmentName)).size;
-      return <article className={`panel report-card report-card-${config.chartType}`} key={report.id}><header className="report-card-head"><div><span className="report-type-label">{visualTypes.map(type => chartTypes.find(([item]) => item === type)?.[1] ?? type).join(" · ")}</span><h4>{report.name}</h4><p>{departmentCount} departments · {sourceCount} tables · {pivot.matchingRows} matching rows</p></div><div className="report-card-actions"><button className="icon-button" title="Export as CSV" aria-label={`Export ${report.name} as CSV`} onClick={() => exportCsv(report)}><Download size={15}/></button><button className="icon-button" title="Export as Excel-compatible workbook" aria-label={`Export ${report.name} to Excel`} onClick={() => exportExcel(report)}><FileSpreadsheet size={15}/></button><button className="icon-button" title="Print or save as PDF" aria-label={`Print ${report.name} or save as PDF`} onClick={() => printReport(report)}><Printer size={15}/></button><button className="icon-button" title="Edit report" aria-label={`Edit ${report.name}`} onClick={() => editReport(report)}><Save size={15}/></button><button className="icon-button report-delete-button" title="Delete report" aria-label={`Delete ${report.name}`} onClick={() => void removeReport(report)}><Trash2 size={15}/></button></div></header><div className="reports-saved-visuals">{visualTypes.map(type => { const { rows, total, totalValue } = makeRows(config, type); return <section className="reports-saved-visual" key={type}><span className="report-type-label">{chartTypes.find(([item]) => item === type)?.[1] ?? type}</span><ReportVisual type={type} rows={rows} totalLabel={total} totalValue={totalValue} metricLabel={metric} pivot={type === "pivot" ? pivot : undefined} fieldName={field => fieldLabel(field, config)}/></section>; })}</div></article>;
+      return <article className={`panel report-card report-card-${config.chartType}`} key={report.id}><header className="report-card-head"><div><span className="report-type-label">{visualTypes.map(type => chartTypes.find(([item]) => item === type)?.[1] ?? type).join(" · ")}</span><h4>{report.name}</h4><p>{departmentCount} departments · {sourceCount} tables · {pivot.matchingRows} matching rows</p></div><div className="report-card-actions"><button className="icon-button" title="Download selected table rows CSV" aria-label={`Download ${report.name} source rows CSV`} onClick={() => downloadSourceCsv(config, `${safeExportBase(report.name)}-data.csv`)}><FileSpreadsheet size={15}/></button><button className="icon-button" title="Download chart PNG" aria-label={`Download ${report.name} chart PNG`} onClick={() => void downloadChartPng(config, visualTypes[0] ?? config.chartType, report.name)}><Download size={15}/></button><button className="icon-button" title="Export as CSV" aria-label={`Export ${report.name} as CSV`} onClick={() => exportCsv(report)}><Download size={15}/></button><button className="icon-button" title="Export as Excel-compatible workbook" aria-label={`Export ${report.name} to Excel`} onClick={() => exportExcel(report)}><FileSpreadsheet size={15}/></button><button className="icon-button" title="Print or save as PDF" aria-label={`Print ${report.name} or save as PDF`} onClick={() => printReport(report)}><Printer size={15}/></button><button className="icon-button" title="Edit report" aria-label={`Edit ${report.name}`} onClick={() => editReport(report)}><Save size={15}/></button><button className="icon-button report-delete-button" title="Delete report" aria-label={`Delete ${report.name}`} onClick={() => void removeReport(report)}><Trash2 size={15}/></button></div></header><div className="reports-saved-visuals">{visualTypes.map(type => { const { rows, total, totalValue } = makeRows(config, type); return <section className="reports-saved-visual" key={type}><span className="report-type-label">{chartTypes.find(([item]) => item === type)?.[1] ?? type}</span><ReportVisual type={type} rows={rows} totalLabel={total} totalValue={totalValue} metricLabel={metric} pivot={type === "pivot" ? pivot : undefined} fieldName={field => fieldLabel(field, config)}/></section>; })}</div><details className="reports-saved-data"><summary>View selected source table data</summary>{sourceDataTables(config)}</details></article>;
     })}</div> : <section className="panel reports-first-run"><div className="reports-first-icon"><BarChart3 size={25}/></div><h3>Your BI workspace is ready</h3><p>Select boards from multiple departments, choose a measure and chart type, then add your first report.</p><button className="primary-button" onClick={() => document.querySelector(".reports-builder")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Plus size={15}/> Start building</button></section>}
     <div className="reports-footnote">Reports show data available to your signed-in account. Board permissions are enforced by Supabase row-level security.</div>
   </div>;
